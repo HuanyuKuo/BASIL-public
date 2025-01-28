@@ -1,15 +1,12 @@
-# BASIL: Bayesian Selection Inference for DNA-barcode lineage tracking (BLT)
+# BASIL: BAyesian Selection Inference for Lineage tracking experiment
 
 
-**Our Python program aims to analyze DNA barcode read count data from the lineage tracking (BLT) experiment. 
-The algorithm applies Bayesian filtering method to (1) identify beneficail lineages and (2) infer their selection coefficients.
+This python program aims to analyze DNA barcode read count data from the lineage tracking experiment. 
+The algorithm applies Bayesian filtering method to identify beneficail lineages and infer their selection coefficients.
 
-The central concept of this method is the Bayesian probability distribution 
-of the lineage's dynamics (size and selection-coefficients). 
-At each time step, we estimate the population-mean fitness and the probability distribution of (individual) lineage dynamics.
-At the final step, all barcoded lineages are classified to neutral or adaptive group based on their Bayesian estimates.
-
-![Mean-fitness trajectory](output/meanfitness_trajectory_Bayes_Simulation_20220213_v6.png =x250)
+The key concept is to estimate the **Bayesian probability distribution of size and selection-coefficient** for each lineage. 
+At each time step, we infer the population-mean fitness and estimate the indvidual lineage's Bayesian probability.
+At the end time, all barcoded lineages are classified to neutral or adaptive group based on their Bayesian estimates.
 
 * Before you run the code, check **System Request** and **Data Setting**. 
 * Execute the program 
@@ -18,8 +15,12 @@ At the final step, all barcoded lineages are classified to neutral or adaptive g
   python main.py 
   ```
 * You can find an example of barcode-data in "./input/Data_BarcodeCount_simuMEE_20220213.txt", with running results under "./output/"
-* A simulation program is provided as a data generator for barcode-lineage-tracking. You could play with the program and use simulated data to test the BFM method code. 
-* After running, the program will generate (1) mean fitness trajectory (2) Identified beneficial lineages with their inferred selection coefficients (3) The parametric Bayesian probabilities of all lineages for all time points
+* A simulation program is provided as a data generator. You could play it to test the BASIL analysis. 
+* After running, the BASIL program will generate (1) Mean fitness trajectory (2) Identified beneficial lineages with their inferred selection coefficients (3) The parametric Bayesian probabilities of all lineages for all time points
+<p float="left">
+  <img src="/img_README/BASIL_Barcode_Trajectory_Simulation_20220213_v6_ConfidenceFactorBeta=5.00.png" height="400" />
+  <img src="/img_README/meanfitness_trajectory_Bayes_Simulation_20220213_v6.png" height="300" />
+</p>
 
 ## System Request
 1. Python version >= 3.6
@@ -43,7 +44,7 @@ At the final step, all barcoded lineages are classified to neutral or adaptive g
     ```
 
 
-3. Run all .py program under "/main_scripts/model_code/". Make sure that all pkl files are generated.
+3. Run all pystan program under "/main_scripts/model_code/". Make sure that "SModel_S.pkl" and "NModel.pkl" files are generated.
     ```sh
     python ./model_code/pystan_SModel_S.py  
     python ./modle_code/pystan_NModel.py
@@ -57,7 +58,7 @@ At the final step, all barcoded lineages are classified to neutral or adaptive g
     D = ENTER YOUR DILUTION FACTOR
     N = ENTER YOUR CARRYING CAPACITY i.e., total population size before dilution
     ```
-2. Input data. Place your barcode-count data (txt file) under "./input/", with barcodes=row and time-point=column. The unit of time must be in cycle, not generations.
+2. For input data, place your barcode-count data (txt file) under "./input/", with barcodes=row and time-point=column. The unit of time must be in cycle, not generations.
 3. Test your input data. Open "./main_scripts/myReadfile.py". Make **datafilename** as your input file name. 
     ```sh
     datafilename =  YOUR INPUT DATA NAME (barcode-count)
@@ -76,7 +77,6 @@ At the final step, all barcoded lineages are classified to neutral or adaptive g
     ```sh
     python main.py
     ```
-3. (Optional) Run "./main_scripts/plot_result.py" to output results or make plots.
 
 ## Debug
 1. Most libraries are common in python except of "noisyopt" and "pystan". Both of them are on PyPI. I use Anacaonda (conda) to install libraries on Windows OS. For Linux user, you might use the follow command to install noisyopt and pystan.  
