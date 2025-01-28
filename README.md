@@ -19,7 +19,7 @@ At the end time, all barcoded lineages are classified to neutral or adaptive gro
 * After running, the BASIL program will generate (1) Mean fitness trajectory (2) Identified beneficial lineages with their inferred selection coefficients (3) The parametric Bayesian probabilities of all lineages for all time points
 <p float="left">
   <img src="/img_README/BASIL_Barcode_Trajectory_Simulation_20220213_v6_ConfidenceFactorBeta=5.00.png" height="400" />
-  <img src="/img_README/meanfitness_trajectory_Bayes_Simulation_20220213_v6.png" height="300" />
+  <img src="/img_README/meanfitness_trajectory_Bayes_Simulation_20220213_v6.png" height="200" />
 </p>
 
 ## System Request
