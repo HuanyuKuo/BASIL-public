@@ -9,7 +9,7 @@ of the lineage's dynamics (size and selection-coefficients).
 At each time step, we estimate the population-mean fitness and the probability distribution of (individual) lineage dynamics.
 At the final step, all barcoded lineages are classified to neutral or adaptive group based on their Bayesian estimates.
 
-![Mean-fitness trajectory](output/meanfitness_trajectory_Bayes_Simulation_20220213_v6.png=x250)
+![Mean-fitness trajectory](output/meanfitness_trajectory_Bayes_Simulation_20220213_v6.png =x250)
 
 * Before you run the code, check **System Request** and **Data Setting**. 
 * Execute the program 
