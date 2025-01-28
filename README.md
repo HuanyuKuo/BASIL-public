@@ -1,8 +1,7 @@
 # BASIL: BAyesian Selection Inference for Lineage tracking experiment
 
 
-This python program aims to analyze DNA barcode read count data from the lineage tracking experiment. 
-The algorithm applies Bayesian filtering method to identify beneficail lineages and infer their selection coefficients.
+To analyze DNA barcode read count data from the lineage tracking experiment, this algorithm applies Bayesian filtering method to identify beneficail lineages and infer their selection coefficients.
 
 The key concept is to estimate the **Bayesian probability distribution of size and selection-coefficient** for each lineage. 
 At each time step, we infer the population-mean fitness and estimate the indvidual lineage's Bayesian probability.
@@ -16,11 +15,12 @@ At the end time, all barcoded lineages are classified to neutral or adaptive gro
   ```
 * You can find an example of barcode-data in "./input/Data_BarcodeCount_simuMEE_20220213.txt", with running results under "./output/"
 * A simulation program is provided as a data generator. You could play it to test the BASIL analysis. 
-* After running, the BASIL program will generate (1) Mean fitness trajectory (2) Identified beneficial lineages with their inferred selection coefficients (3) The parametric Bayesian probabilities of all lineages for all time points
+* After running, the algorithm will generate (1) Mean fitness trajectory (2) Identified beneficial lineages with their inferred selection coefficients (3) The parametric Bayesian probabilities of all lineages for all time points. 
+
+Here is an example of output image.
 <p float="left">
-  <img src="/img_README/BASIL_Barcode_Trajectory_Simulation_20220213_v6_ConfidenceFactorBeta=5.00.png" width="450" />
-  <img src="/img_README/meanfitness_trajectory_Bayes_Simulation_20220213_v6.png" width="280" />
-</p>
+  <img src="/img_README/BASIL_Barcode_Trajectory_Simulation_20220213_v6_ConfidenceFactorBeta=5.00.png" width="700" /> 
+</p> 
 
 ## System Request
 1. Python version >= 3.6
