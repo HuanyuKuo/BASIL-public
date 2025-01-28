@@ -1,0 +1,46 @@
+April 1, 2022
+	remove the upper bound of parameter "epsilon" in all files. 
+Aug 30, 2021
+	pytstan_IModel.py: re-write definition of \epsilon in NB function. 
+	pytstan_NModel.py: re-write definition of \epsilon in NB function. 
+	pytstan_SModel_N.py: re-write definition of \epsilon in NB function. 
+	pytstan_SModel_S.py: re-write definition of \epsilon in NB function. 
+	New definition: for a NB distribution, variance = mean + \epsilon * mean^2
+	
+Jan 27, 2021
+	pystan_NModel.py, pystan_SModel_N.py, pystan_SModel_S.py: 
+		solve a bug of growth_ratio: real<lower=1> -> real<lower=0>
+
+Jan 25, 2021
+	rewrite the posterior function (new method! transfer only mean and variance of cell number as parameter of prior dist, and compute survival probability)
+	pystan_NModel.py  : add function myDist_NM_transition_prior_lpdf
+			    add function get_transition_parameters (return vector of 3 variables: survival probability, k=shape parameter of Gamma dist of cell number, theta=scale parameter of Gamma dist of cell number)
+ 			    add function survival_prob_one_dilution
+			    add generated quantities: prob_survive # survival probability
+   			    remove function myDist_NM_analytical_prior_lpdf
+        pystan_SModel_N.py: add function myDist_NM_transition_prior_lpdf
+			    add function get_transition_parameters (return vector of 3 variables: survival probability, k=shape parameter of Gamma dist of cell number, theta=scale parameter of Gamma dist of cell number)
+ 			    add function survival_prob_one_dilution
+			    add generated quantities: prob_survive # survival probability
+			    remove remove function myDist_SM_analytical_prior_lpdf
+	pystan_SModel_S.py: add function myDist_NM_transition_prior_lpdf
+			    add function get_transition_parameters (return vector of 3 variables: survival probability, k=shape parameter of Gamma dist of cell number, theta=scale parameter of Gamma dist of cell number)
+ 			    add function survival_prob_one_dilution
+			    add generated quantities: prob_survive # survival probability
+			    remove remove function myDist_SM_analytical_prior_lpdf
+Sep 12, 2020
+	pystan_SModel_S.py: modify meanfitness range (not bounded above zero, just real)
+	pystan_SModel_N.py: modify meanfitness range (not bounded above zero, just real)
+Aut 19, 2020
+	pystan_SModel_S.py: modify MODEL_NAME, finishe non-informative \s prior = uniform distirubtion of \s
+	pystan_SModel_N.py: modify MODEL_NAME
+	pystan_NModel.py  : modify MODEL_NAME
+	pystan_IModel.py  : modify MODEL_NAME
+
+Aug 18, 2020
+	add pystan_SModel_N.py					# selective model code for neutral lineage
+	rename pystan_model_S.py => pystan_SModel_S.py 		# Selective model code for selective lineage
+	rename pystan_model_N_clean => pystan_NModel.py 	# Neutral model code
+	rename pystan_model_init_clean => pystan_IModel.py 	# initial model code
+Aug 14, 2020
+	meanfitness value is not limited to above zero, could be negative.

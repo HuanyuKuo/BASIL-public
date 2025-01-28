@@ -1,0 +1,8 @@
+Number of Lineage=10000
+Number of adaptive Lineage=200
+Number of total cell=19851400
+total time point=10
+epsilon=0.0
+total reads=1000000.000000
+DFE Normal_dist
+diluiton ratio 100
