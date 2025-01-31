@@ -76,6 +76,40 @@ Here is an example of output image.
     ```sh
     python main.py
     ```
+## Guide to Package Installation
+I run BASIL program with Pycharm under WSL (Windows Subsystem for Linux). This installation guide should work for Windows/Linux user. 
+
+1. First ensure that Pycharm & Anaconda/Miniconda are installed.
+2. Open Pycharm and go to the terminal. You will see "(base)" at the head of command line. It's the default environment when you install conda (or anaconda). It is a best practice to avoid installing python packages into the base software environment.
+3. To install virtual environment:
+    ```sh
+     conda create -n myenv-basil python=3.9
+    ```
+   Replace "myenv-basil" with your desire name.
+4. Go to the virtual environment.
+    ```sh
+     conda activate myenv-basil
+    ```
+   Now "(myenv-basil)" shows at the head of command line.
+5. Download the BASIL program by copying the whole folder or by git clone.
+6. Go to the main_scripts folder. Run test_library.py to make sure all required libraries are installed.
+   ```sh
+   cd ./BASIL-public/main_scripts/
+   python test_library.py
+   ```
+7. Then you'll get error messages of missing package. Install the required package with conda or pip. Rerun the "test_library.py" (step 6) and install all libraries.
+   ```sh
+   conda install "package-name"
+   ```
+   Here is mine. 
+   ```sh
+   conda install numpy
+   conda install scipy
+   pip install noisyopt
+   conda install matplotlib
+   conda install pystan
+   ```
+
 
 ## Debug
 1. Most libraries are common in python except of "noisyopt" and "pystan". Both of them are on PyPI. I use Anacaonda (conda) to install libraries on Windows OS. For Linux user, you might use the follow command to install noisyopt and pystan.  

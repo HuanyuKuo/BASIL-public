@@ -93,15 +93,15 @@ if __name__ == '__main__':
     start_time = 1
     end_time = const.T
     lineage_info =  {'lineage_name': case_name +'_v6'}
-    #run_lineages(lins, start_time, end_time, const, lineage_info)
+    run_lineages(lins, start_time, end_time, const, lineage_info)
 
     #
     # 4. Output mean fitness,  Output selection coefficient
     #
 
     # output mean fitness
-    #mr.output_global_parameters_BFM(lineage_info,const)
-    #meanfitness_Bayes_cycle, epsilon_Bayes, t_arr_cycle = mr.read_global_parameters_BFM(lineage_info)
+    mr.output_global_parameters_BFM(lineage_info,const)
+    meanfitness_Bayes_cycle, epsilon_Bayes, t_arr_cycle = mr.read_global_parameters_BFM(lineage_info)
 
     # output parameters of Bayesian estimate for all lineages
     BFM_result = mr.output_Posterior_parameters_Bayes_v5(lineage_info, datafilename)
