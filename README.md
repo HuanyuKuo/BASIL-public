@@ -44,10 +44,9 @@ Here is an example of output image.
     ```
 
 
-3. Run all pystan program under "/main_scripts/model_code/". Make sure that "SModel_S.pkl" and "NModel.pkl" files are generated.
+3. Generate the Bayesian model by executing stan code under "/main_scripts/model_code/". A new file "SModel_S.pkl" should be generated under the same folder.
     ```sh
     python ./model_code/pystan_SModel_S.py  
-    python ./modle_code/pystan_NModel.py
     ```
 4. This program can use multi processors to speed up MCMC calculations. A multi CPU-core environment is highly recommended. 
 
