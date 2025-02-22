@@ -23,7 +23,7 @@ Here is an example of output image.
 </p> 
 
 ## System Request
-1. Python version >= 3.6
+1. python >= 3.6, pystan <= 2.19.1.1
 2. Go to the main_scripts folder. Run test_library.py to make sure all required libraries are installed.  
    ```sh
    cd ./BASIL/main_scripts/
@@ -107,7 +107,7 @@ I run BASIL program with Pycharm under WSL (Windows Subsystem for Linux). This i
    conda install scipy
    pip install noisyopt
    conda install matplotlib
-   conda install pystan
+   conda install pystan=2.19.1.1
    ```
 
 

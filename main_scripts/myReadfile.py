@@ -336,7 +336,8 @@ def output_Selection_Coefficient_Bayes_v5(lineage_info, datafilename, BFM_result
     # Add colorbar
     fig.subplots_adjust(right=0.9)
     s_m = matplotlib.cm.ScalarMappable(cmap=cmap, norm=norm)
-    cbar = fig.colorbar(matplotlib.cm.ScalarMappable(cmap=cmap, norm=norm))
+    #cbar = fig.colorbar(matplotlib.cm.ScalarMappable(cmap=cmap, norm=norm))
+    cbar = fig.colorbar(s_m, ax=plt.gca())
     cbar.ax.set_title('s, %', )
 
 
