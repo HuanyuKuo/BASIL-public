@@ -221,8 +221,8 @@ def output_Selection_Coefficient_Bayes_v5(lineage_info, datafilename, BFM_result
 
     # Prepare for output
     case_name = lineage_info['lineage_name']
-    f = open(mc.OutputFileDir + 'BASIL_Selection_Coefficient_' + case_name + '_ConfidenceFactorBeta={:.2f}'.format(beta)+'.txt', 'w')
-    f.write('ADP_BCID_Bayes\tADP_s_mean_Bayes\tADP_s_std_Bayes\tADP_s_time\n')
+    f = open(mc.OutputFileDir + 'BASIL_Selection_Coefficient_for_called_Adapted_' + case_name + '_ConfidenceFactorBeta={:.2f}'.format(beta)+'.txt', 'w')
+    f.write('BCID_Bayes\ts_mean(1/cycle)\ts_std(1/cycle)\tcalled_timepoint\n')
 
     bcid_all_result = {}
     bcid_adp_fit = []
