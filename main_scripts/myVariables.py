@@ -41,6 +41,7 @@ class Constant():
 class Global():
     def __init__(self, const):
         self.current_timepoint = 0
+        self.T_file=0
         self.epsilon = float(const.eps)  # measuring dispersion (0-1) (default) # epsilon=0, Measurement process is Poisson (VMR=1), if epsilon=1, Measurement process is NB with VMR=2. # VMR=vairance mean ratio
         self.meanfitness = float(0.0) # mean-fitness (default)
         self.R = const.Rt[self.current_timepoint]  # total number of reads at time t (default)
@@ -103,12 +104,13 @@ class Global():
     #def outputfile(self, lineage_info, sol1, sol2, N_rand, OutputFileDir):
     def outputfile(self, lineage_info, sol, N_rand):
     #def  outputfile(self, lineage_info, sol1, n1, sol2, n2):
-        outfilename = 'glob_'+lineage_info['lineage_name']+f"_T{self.current_timepoint}.txt"
+        self.T_file = lineage_info['file_start_time'] - 1 + self.current_timepoint
+        outfilename = 'glob_'+lineage_info['lineage_name']+f"_T{self.T_file}.txt"
         outputfiledirname = OutputFileDir+outfilename
         
         f = open(outputfiledirname, 'w') 
         f.write("===Print value of Globals===\n")
-        f.write(f"Current time point (integer)\t{self.current_timepoint}\n")
+        f.write(f"Current time step (integer)\t{self.current_timepoint}\n")
         f.write(f"Measurment_dispersion_epsilon\t{self.epsilon}\n")
         f.write(f"Mean_Fitness\t{self.meanfitness}\n")
         f.write(f"Total_Read\t{self.R}\n")
@@ -119,15 +121,7 @@ class Global():
         f.write(f"Number_of_lineage_to_fit_Global\t{N_rand}\n")
         f.write("\n===Fitting meanfitness and epsilon===\n\n")
         print(sol, file=f)
-        
-        '''
-        f.write("\n===Fitting mean-fitness===\n\n")
-        f.write(f"Number_of_lineage_to_fit\t{n1}\n")
-        print(sol1, file=f)
-        f.write("\n===Fitting epsilon===\n\n")
-        f.write(f"Number_of_lineage_to_fit\t{n2}\n")
-        print(sol2, file=f)
-        '''
+
         f.close()
     '''
     #def outputfile2d(self, lineage_info, sol, N_rand):

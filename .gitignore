@@ -1,1 +1,4 @@
 __pycache__
+output
+main_scripts/model_code/SModel_S.pkl
+main_scripts/model_code/posterior_SModel_S.png

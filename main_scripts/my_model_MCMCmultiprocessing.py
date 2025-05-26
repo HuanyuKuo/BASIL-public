@@ -410,8 +410,7 @@ def put_posterior_to_file(run_dict, done_queue, TASK_size, glob):
     lineage_name = run_dict['lineage_name']
     
     # output lineage posterior to file
-    #
-    outfilename = 'posterior_'+lineage_name+'_'+model_name+f"_T{glob.current_timepoint}.txt"
+    outfilename = 'posterior_'+lineage_name+'_'+model_name+f"_T{glob.T_file}.txt"
     print(outfilename)
     
     if (model_name == MODEL_NAME['N']):
@@ -449,19 +448,19 @@ def put_posterior_to_file(run_dict, done_queue, TASK_size, glob):
 #
 # Function creates the tag list of lineage from the past time point
 #   
-def create_lineage_list_by_pastTag(lins, current_time, lineage_info, const):
-    
-    last_time = current_time -1
-    
+def create_lineage_list_by_pastTag(lins, current_step, lineage_info, const ):
+
+
     # Update the reads value to current time
     for lin in lins:
-        lin.set_reads(last_time=last_time)
-        
+        lin.set_reads(last_time=current_step -1)
     #
     # Initialization
     #
-    if last_time ==0:  # # initial time point
-        # Initilization of lineage
+    if (current_step==1) and (lineage_info['initializing_lineage_filename'] is None):
+        #
+        # Initilization of lineage by default
+        #
         for lin in lins:
             mu_r = float((0.001+lin.r0))
             k = mu_r/(1+mu_r*const.eps)
@@ -470,23 +469,32 @@ def create_lineage_list_by_pastTag(lins, current_time, lineage_info, const):
             lin.nm.UPDATE_POST_PARM(k=k, theta=theta, log_norm= 0., log_prob_survive=0.)
             lin.sm.UPDATE_POST_PARM(k=k, a=theta*k, b=0, mean_s=0.00*np.log2(mc.D), var_s=(0.1*np.log2(mc.D))**2, log_norm=0, log_prob_survive=0)
             lin._init_TAG()
-    #
-    # Read The PAST information from file and read PastTAG of lineage
-    #
-    elif last_time >0:
+    else:
+        #
+        # Read lineage information from file
+        #
+        if current_step == 1:
+            readfilename = lineage_info['initializing_lineage_filename']
+            print('initializing_lineage_filename')
+
+        else:
+            last_step = current_step - 1
+            T_file_to_read = lineage_info['file_start_time'] - 1 + last_step
+            readfilename = 'posterior_' + lineage_info['lineage_name'] + '_' + MODEL_NAME['SS'] + f"_T{T_file_to_read}.txt"
+
         lins_survive = []
         for lin in lins:
-            if lin.T_END > current_time:
+            if lin.T_END > current_step:
                 lins_survive.append(lin)
-                
         lins = lins_survive
-        lins = readfile2lineage(lins, lineage_info['lineage_name'], last_time=last_time)
+        lins = readfile2lineage(lins, readfilename=readfilename, last_step=current_step-1)
+
 
     return lins
 
 
-def readfile2lineage(lins, lineage_name, last_time):
-    t = last_time
+def readfile2lineage(lins, readfilename, last_step):
+    #t = last_time
 
     if len(lins) > 0:
         #
@@ -523,11 +531,10 @@ def readfile2lineage(lins, lineage_name, last_time):
         # Read SModel file 2 lineages
         read_model_name = MODEL_NAME['SS']
 
-        readfilename = 'posterior_' + lineage_name + '_' + read_model_name + f"_T{t}.txt"
-        print(readfilename)
+        # readfilename = 'posterior_' + lineage_name + '_' + read_model_name + f"_T{t}.txt"
+        # print(readfilename)
 
         if os.path.exists(OutputFileDir + readfilename):
-
             f = open(OutputFileDir + readfilename, 'r')
             list_of_lines = f.readlines()
             f.close()
@@ -553,12 +560,13 @@ def readfile2lineage(lins, lineage_name, last_time):
             f = open(OutputFileDir + readfilename, 'w')
             f.writelines(list_of_lines)
             f.close()
-
+        else:
+            raise ValueError("ERROR: file " + OutputFileDir + readfilename+ " NOT exist.")
 
         #
         # Classify Putative lineage class at t+1 based on the (past) Bayes factor
         for i in range(len(lins)):
-            lins[i].reTAG(last_time=t) # Get current putative lineage class
+            lins[i].reTAG(last_time= last_step) # Get current putative lineage class
 
     return lins
 '''

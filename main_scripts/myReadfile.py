@@ -43,7 +43,8 @@ def output_global_parameters_BFM(lineage_info, const):
     meanfitness_Bayes = []
     fdir =  mc.OutputFileDir  
     for t in range(1, const.T):
-        fname = fdir + 'glob_'+ lineage_info['lineage_name'] + f'_T{t}.txt'
+        T_file = lineage_info['file_start_time'] - 1 + t
+        fname = fdir + 'glob_'+ lineage_info['lineage_name'] + f'_T{T_file}.txt'
         f =open(fname)
         f.readline()
         f.readline()
@@ -102,7 +103,7 @@ def output_Posterior_parameters_Bayes_v5(lineage_info, datafilename): # 2025
 
     # output the parameters (k,a,b,s_mean, s_var) of parametric posterior for all lineages for all timepoints
 
-    BFM_result, t_arr = read_Posterior_parameters_Bayes_v5(lineage_info, datafilename)
+    BFM_result, t_arr, _ = read_Posterior_parameters_Bayes_v5(lineage_info, datafilename)
 
     print(len(BFM_result))
 
@@ -110,8 +111,12 @@ def output_Posterior_parameters_Bayes_v5(lineage_info, datafilename): # 2025
     case_name = lineage_info['lineage_name']
     f = open(mc.OutputFileDir + 'BASIL_All_posterior_parameters_' + case_name + '.txt', 'w')
 
-    headline_list = ['k_T{:d}'.format(t)+ '\t' + 'a_T{:d}'.format(t)+ '\t'+ 'b_T{:d}'.format(t)+ '\t'
-                + 's_mean_T{:d}'.format(t) + '\t' + 's_var_T{:d}'.format(t) +'\t'+ 'logZ_T{:d}'.format(t) for t in t_arr]
+    headline_list = ['k_T{:d}'.format(lineage_info['file_start_time'] - 1 + t)+ '\t'
+                     + 'a_T{:d}'.format(lineage_info['file_start_time'] - 1 + t)+ '\t'
+                     + 'b_T{:d}'.format(lineage_info['file_start_time'] - 1 + t)+ '\t'
+                     + 's_mean_T{:d}'.format(lineage_info['file_start_time'] - 1 + t) + '\t'
+                     + 's_var_T{:d}'.format(lineage_info['file_start_time'] - 1 + t) +'\t'
+                     + 'logZ_T{:d}'.format(lineage_info['file_start_time'] - 1 + t) for t in t_arr]
     headline_str ='BCID\t' +  '\t'.join(headline_list) +'\n'
     f.write(headline_str)
 
@@ -130,8 +135,6 @@ def output_Posterior_parameters_Bayes_v5(lineage_info, datafilename): # 2025
                 f.write(str(out['log_norm_S_arr'][idx]) + '\t')
             else:
                 f.write('\t\t\t\t\t\t')
-
-
         f.write('\n')
 
     f.close()
@@ -139,7 +142,7 @@ def output_Posterior_parameters_Bayes_v5(lineage_info, datafilename): # 2025
 
 def read_Posterior_parameters_Bayes_v5(lineage_info, datafilename): # 2025
 
-    lins, totalread, cycles = my_readfile(datafilename)
+    lins, totalread, t_cycles = my_readfile(datafilename)
     BCIDs = [lins[i].BCID for i in range(len(lins))]
     dict_BCID_2_idx = {}
     for i in range(len(BCIDs)):
@@ -177,7 +180,7 @@ def read_Posterior_parameters_Bayes_v5(lineage_info, datafilename): # 2025
     # reduce size
     BFM_result = [BFM_result[j] for j in range(len(BFM_result)) if len(BFM_result[j]['t_arr'])>1]
 
-    return BFM_result, t_arr
+    return BFM_result, t_arr, t_cycles
 
 def get_Posterior_parameters_from_BayesFiles_v5(lineage_info, t):
     MODEL_NAME = mc.MODEL_NAME
@@ -186,8 +189,8 @@ def get_Posterior_parameters_from_BayesFiles_v5(lineage_info, t):
 
     tmp_bcids_SS, tmp_s_mean_SS, tmp_s_var_SS, tmp_log_norm_SS, tmp_expected_n_mean_SS, tmp_expected_n_std_SS = [], [], [], [], [],[]
     tmp_param_k, tmp_param_a, tmp_param_b = [], [], []
-
-    readfilename = 'posterior_' + lineage_name + '_' + MODEL_NAME['SS'] + f"_T{t}.txt"
+    T_file = lineage_info['file_start_time'] - 1 + t
+    readfilename = 'posterior_' + lineage_name + '_' + MODEL_NAME['SS'] + f"_T{T_file}.txt"
     # print(readfilename)
     if os.path.exists(OutputFileDir + readfilename) is False:
         print('No file ' + OutputFileDir + readfilename + '\n')
@@ -214,136 +217,137 @@ def get_Posterior_parameters_from_BayesFiles_v5(lineage_info, t):
 
     return tmp_bcids_SS, tmp_s_mean_SS, tmp_s_var_SS, tmp_log_norm_SS, tmp_expected_n_mean_SS, tmp_expected_n_std_SS, tmp_param_k, tmp_param_a, tmp_param_b
 
-def output_Selection_Coefficient_Bayes_v5(lineage_info, datafilename, BFM_result=None, beta=mc.beta):
+def output_Selection_Coefficient_Bayes_v5(lineage_info, datafilename, beta=[mc.beta]):
 
-    if BFM_result == None:
-        BFM_result, _ = read_Posterior_parameters_Bayes_v5(lineage_info, datafilename)
-
-    # Prepare for output
-    case_name = lineage_info['lineage_name']
-    f = open(mc.OutputFileDir + 'BASIL_Selection_Coefficient_for_called_Adapted_' + case_name + '_ConfidenceFactorBeta={:.2f}'.format(beta)+'.txt', 'w')
-    f.write('BCID_Bayes\ts_mean(1/cycle)\ts_std(1/cycle)\tcalled_timepoint\n')
-
-    bcid_all_result = {}
-    bcid_adp_fit = []
-
-    for j in range(len(BFM_result)):
-        out = BFM_result[j]
-        out.update({'TYPE': 'NEU'})
-        bcid_all_result.update({out['BCID']: j})
-
-        s_var_arr = out['s_var_arr']
-        idx = np.where(np.asarray(s_var_arr)==min(s_var_arr))[0][0]
-        s_mean = out['s_mean_arr'][idx]
-        s_std = np.sqrt(out['s_var_arr'][idx])
-
-        out['s_mean'] = s_mean
-        out['s_std'] = s_std
-
-        if (s_mean- beta*s_std)>0:
-
-            f.write(str(out['BCID']) + '\t')                        # bcid
-            f.write(str(s_mean) + '\t')                             # s mean
-            f.write(str(s_std) + '\t')                              # s std
-            f.write(str(out['t_arr'][idx]) + '\n')                  # s time
-            BFM_result[j]['TYPE']='ADP'
-            bcid_adp_fit.append(out['BCID'])
-    f.close()
-
-    s_mean_ADP = [BFM_result[bcid_all_result[bcid]]['s_mean'] for bcid in bcid_adp_fit]
-    s_std_ADP = [BFM_result[bcid_all_result[bcid]]['s_std'] for bcid in bcid_adp_fit]
-    bcid_neutral_fit = list(set(list(bcid_all_result.keys())) - set(bcid_adp_fit) )
-    s_mean_NEU = [BFM_result[bcid_all_result[bcid]]['s_mean'] for bcid in bcid_neutral_fit]
-    s_std_NEU = [BFM_result[bcid_all_result[bcid]]['s_std'] for bcid in bcid_neutral_fit]
-
-    # Plot the mean and standard deviation of selection coefficients
-    plt.figure()
-    plt.plot(s_mean_NEU / np.log2(mc.D)*100, s_std_NEU / np.log2(mc.D)*100, 'k.', ms=0.5, alpha=0.02,
-             label=f'Neutral (n={len(s_mean_NEU)})')
-    plt.plot(s_mean_ADP / np.log2(mc.D)*100, s_std_ADP / np.log2(mc.D)*100, 'r.', ms=1, alpha=0.3,
-             label=f'Adaptive (n={len(s_mean_ADP)})')
-    xmin = -25 # min(min(s_mean_NEU),min(s_mean_ADP))
-    xmax = 25 # max(max(s_mean_NEU),max(s_mean_ADP))
-    ymin = 0
-    ymax = 10 # max(max(s_std_NEU),max(s_std_ADP))
-
-    plt.plot([0, xmax], [0, xmax/beta], ':', color='b',label='conficence factor (beta) = {:.1f}'.format(beta))
-    plt.xlim(xmin, xmax)
-    plt.ylim(ymin, ymax)
-    plt.xlabel('s mean (%)')
-    plt.ylabel('s std (%)')
-    plt.legend()
-    plt.savefig(mc.OutputFileDir + 'BASIL_Selection_Coefficient_' + case_name + '_ConfidenceFactorBeta={:.2f}'.format(beta) + '.pdf')
-
-    #
-    # Plot the lineages trajectories, colored by inferred s
-    #
-    lins, totalread, t_cycles = my_readfile(datafilename)
-
-    log10_total_reads = np.log10(totalread)
-
-    BCIDs = [lins[i].BCID for i in range(len(lins))]
-    dict_BCID_2_idx = {}
-    for i in range(len(BCIDs)):
-        dict_BCID_2_idx.update({BCIDs[i]: i})
-
-    idx_adaptive, idx_neutral = [],[]
-    s_sort_idx = {}
-    for idx in range(0, len(lins)):
-        lin = lins[idx]
-        if lin.BCID in bcid_adp_fit:
-            idx_adaptive.append(idx)
-        else:
-            idx_neutral.append(idx)
+    BFM_result, _, t_cycle = read_Posterior_parameters_Bayes_v5(lineage_info, datafilename)
 
 
-    fig, ax = plt.subplots(1,1,figsize=(8, 5.5))
-    # define color map
-    cmap = matplotlib.cm.get_cmap("jet")
-    # need to normalize because color maps are defined in [0, 1]
-    s_max = int(max(s_mean_ADP / np.log2(mc.D)*100))
-    s_min = int(0)
-    norm = matplotlib.colors.Normalize(s_min, s_max)
+    for _beta in beta:
+        # Prepare for output
+        case_name = lineage_info['lineage_name']
+        f = open(mc.OutputFileDir + 'BASIL_Selection_Coefficient_for_called_Adapted_' + case_name + '_ConfidenceFactorBeta={:.2f}'.format(_beta)+'.txt', 'w')
+        f.write('BCID_Bayes\ts_mean(1/cycle)\ts_std(1/cycle)\tcalled_time(cycle)\n')
+
+        bcid_all_result = {}
+        bcid_adp_fit = []
+
+        for j in range(len(BFM_result)):
+            out = BFM_result[j]
+            out.update({'TYPE': 'NEU'})
+            bcid_all_result.update({out['BCID']: j})
+
+            s_var_arr = out['s_var_arr']
+            idx = np.where(np.asarray(s_var_arr)==min(s_var_arr))[0][0]
+            s_mean = out['s_mean_arr'][idx]
+            s_std = np.sqrt(out['s_var_arr'][idx])
+
+            out['s_mean'] = s_mean
+            out['s_std'] = s_std
+
+            if (s_mean- _beta*s_std)>0:
+                t_step = out['t_arr'][idx]
+
+                f.write(str(out['BCID']) + '\t')                        # bcid
+                f.write(str(s_mean) + '\t')                             # s mean
+                f.write(str(s_std) + '\t')                              # s std
+                f.write(str(t_cycle[t_step] ) + '\n')                   # s time
+                BFM_result[j]['TYPE']='ADP'
+                bcid_adp_fit.append(out['BCID'])
+        f.close()
+
+        s_mean_ADP = [BFM_result[bcid_all_result[bcid]]['s_mean'] for bcid in bcid_adp_fit]
+        s_std_ADP = [BFM_result[bcid_all_result[bcid]]['s_std'] for bcid in bcid_adp_fit]
+        bcid_neutral_fit = list(set(list(bcid_all_result.keys())) - set(bcid_adp_fit) )
+        s_mean_NEU = [BFM_result[bcid_all_result[bcid]]['s_mean'] for bcid in bcid_neutral_fit]
+        s_std_NEU = [BFM_result[bcid_all_result[bcid]]['s_std'] for bcid in bcid_neutral_fit]
+
+        # Plot the mean and standard deviation of selection coefficients
+        plt.figure()
+        plt.plot(s_mean_NEU / np.log2(mc.D)*100, s_std_NEU / np.log2(mc.D)*100, 'k.', ms=0.5, alpha=0.02,
+                 label=f'Neutral (n={len(s_mean_NEU)})')
+        plt.plot(s_mean_ADP / np.log2(mc.D)*100, s_std_ADP / np.log2(mc.D)*100, 'r.', ms=1, alpha=0.3,
+                 label=f'Adaptive (n={len(s_mean_ADP)})')
+        xmin = -25 # min(min(s_mean_NEU),min(s_mean_ADP))
+        xmax = 25 # max(max(s_mean_NEU),max(s_mean_ADP))
+        ymin = 0
+        ymax = 10 # max(max(s_std_NEU),max(s_std_ADP))
+
+        plt.plot([0, xmax], [0, xmax/_beta], ':', color='b',label='conficence factor (beta) = {:.1f}'.format(_beta))
+        plt.xlim(xmin, xmax)
+        plt.ylim(ymin, ymax)
+        plt.xlabel('s mean (%)')
+        plt.ylabel('s std (%)')
+        plt.legend()
+        plt.savefig(mc.OutputFileDir + 'BASIL_Selection_Coefficient_' + case_name + '_ConfidenceFactorBeta={:.2f}'.format(_beta) + '.pdf')
+
+        #
+        # Plot the lineages trajectories, colored by inferred s
+        #
+        lins, totalread, t_cycles = my_readfile(datafilename)
+
+        log10_total_reads = np.log10(totalread)
+
+        BCIDs = [lins[i].BCID for i in range(len(lins))]
+        dict_BCID_2_idx = {}
+        for i in range(len(BCIDs)):
+            dict_BCID_2_idx.update({BCIDs[i]: i})
+
+        idx_adaptive, idx_neutral = [],[]
+        s_sort_idx = {}
+        for idx in range(0, len(lins)):
+            lin = lins[idx]
+            if lin.BCID in bcid_adp_fit:
+                idx_adaptive.append(idx)
+            else:
+                idx_neutral.append(idx)
 
 
-    # Plot neutral lineages (do every 20th elements)
-    for bcid in bcid_neutral_fit[0::20]:
-        idx = dict_BCID_2_idx[bcid]
-        lin = lins[idx]
-        bc_count = lin.rt
-        bc_count = bc_count + (bc_count == 0) * (0.1)  # avoid inf in log10
-        log10_bc_count = np.log10(bc_count)
-        log10freq = log10_bc_count - log10_total_reads
-        ax.plot(t_cycles, log10freq, color='grey', linewidth=0.3)
-
-    # Plot adaptive lineages (colored by s)
-
-    for bcid in bcid_adp_fit:
-        idx = dict_BCID_2_idx[bcid]
-        lin = lins[idx]
-        bc_count = lin.rt
-        bc_count = bc_count + (bc_count == 0) * (0.1)  # avoid inf in log10
-        log10_bc_count = np.log10(bc_count)
-        log10freq = log10_bc_count - log10_total_reads
-
-        s = BFM_result[bcid_all_result[bcid]]['s_mean'] / np.log2(mc.D) * 100
-        col_idx = int(max(s_min, min(s_max, (s))))
-        ax.plot(t_cycles, log10freq, color=cmap(norm(col_idx)), linewidth=0.3)
-
-    ax.set_xlabel('time (cycle)')
-    ax.set_ylabel('Log10 Barcode Frequency')
-
-    # Add colorbar
-    fig.subplots_adjust(right=0.9)
-    s_m = matplotlib.cm.ScalarMappable(cmap=cmap, norm=norm)
-    #cbar = fig.colorbar(matplotlib.cm.ScalarMappable(cmap=cmap, norm=norm))
-    cbar = fig.colorbar(s_m, ax=plt.gca())
-    cbar.ax.set_title('s, %', )
+        fig, ax = plt.subplots(1,1,figsize=(8, 5.5))
+        # define color map
+        cmap = matplotlib.cm.get_cmap("jet")
+        # need to normalize because color maps are defined in [0, 1]
+        s_max = int(max(s_mean_ADP / np.log2(mc.D)*100))
+        s_min = int(0)
+        norm = matplotlib.colors.Normalize(s_min, s_max)
 
 
-    plt.savefig(mc.OutputFileDir+ 'BASIL_Barcode_Trajectory_' + case_name + '_ConfidenceFactorBeta={:.2f}'.format(beta) + '.pdf')
+        # Plot neutral lineages (do every 20th elements)
+        for bcid in bcid_neutral_fit[0::20]:
+            idx = dict_BCID_2_idx[bcid]
+            lin = lins[idx]
+            bc_count = lin.rt
+            bc_count = bc_count + (bc_count == 0) * (0.1)  # avoid inf in log10
+            log10_bc_count = np.log10(bc_count)
+            log10freq = log10_bc_count - log10_total_reads
+            ax.plot(t_cycles, log10freq, color='grey', linewidth=0.3)
 
-    return BFM_result
+        # Plot adaptive lineages (colored by s)
+
+        for bcid in bcid_adp_fit:
+            idx = dict_BCID_2_idx[bcid]
+            lin = lins[idx]
+            bc_count = lin.rt
+            bc_count = bc_count + (bc_count == 0) * (0.1)  # avoid inf in log10
+            log10_bc_count = np.log10(bc_count)
+            log10freq = log10_bc_count - log10_total_reads
+
+            s = BFM_result[bcid_all_result[bcid]]['s_mean'] / np.log2(mc.D) * 100
+            col_idx = int(max(s_min, min(s_max, (s))))
+            ax.plot(t_cycles, log10freq, color=cmap(norm(col_idx)), linewidth=0.3)
+
+        ax.set_xlabel('time (cycle)')
+        ax.set_ylabel('Log10 Barcode Frequency')
+
+        # Add colorbar
+        fig.subplots_adjust(right=0.9)
+        s_m = matplotlib.cm.ScalarMappable(cmap=cmap, norm=norm)
+        #cbar = fig.colorbar(matplotlib.cm.ScalarMappable(cmap=cmap, norm=norm))
+        cbar = fig.colorbar(s_m, ax=plt.gca())
+        cbar.ax.set_title('s, %', )
+
+
+        plt.savefig(mc.OutputFileDir+ 'BASIL_Barcode_Trajectory_' + case_name + '_ConfidenceFactorBeta={:.2f}'.format(_beta) + '.pdf')
+
 
 if __name__ == '__main__':
     
