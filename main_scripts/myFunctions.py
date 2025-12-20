@@ -228,26 +228,44 @@ def theta2(k2,a,b):
 class S_model_posterior():
     def __init__(self, data_cell_num, data_selection_coefficient, log_joint_prob):
         # data = MC sampling of cellnumber, selection coefficient
-        data_cellnum = np.asarray(data_cell_num)
-        data_s = np.asarray(data_selection_coefficient)
-        self.data_logcellnum = np.log(data_cellnum)
+        input_data_2d = np.column_stack((np.log(np.asarray(data_cell_num)), np.asarray(data_selection_coefficient)))
+        # Filter out the extreme values from sampling using modified-z-score method (z>4.5)
+        filter = self.filter_data_by_z_score(input_data_2d)
+
+        self.data_log_n = np.log(np.asarray(data_cell_num))[filter]
+        self.data_s = np.asarray(data_selection_coefficient)[filter]
+        self.data_n = np.exp(self.data_log_n)
+        self.log_joint_prob = log_joint_prob[filter]
+
+        del data_cell_num, data_selection_coefficient, input_data_2d, log_joint_prob
+
+        self.var_s = np.var(self.data_s)
+        self.mean_s = np.mean(self.data_s)
+        self.delta_s = (self.data_s- self.mean_s)/ np.std(self.data_s)
+        self.mean_data_logcellnum = np.mean(self.data_log_n)
+
+        self.b = np.cov(self.data_log_n, self.data_s)[1,0]/np.std(self.data_s)
+        self.a = np.exp(np.log(np.mean(self.data_n)) -1.*self.b *self.b /2)
+        cv = np.std(self.data_n)/np.mean(self.data_n)
+        tmp = 1-np.exp(-1.*self.b *self.b)
+        self.k = 1/(cv*cv-tmp)
+
+        # sol = optimize.root_scalar(f=self._find_k0, bracket=[0, 1000000], method='brentq')
+        # self.k = sol.root
+        # sol = optimize.root_scalar(f=self._find_k0, x0=self.k, method='newton')
+        # self.k = sol.root
         
-        self.var_s = np.var(data_s)
-        self.mean_s = np.mean(data_s)
-        self.delta_s = (data_s- self.mean_s)/ np.std(data_s)
-        self.mean_data_logcellnum = np.mean(self.data_logcellnum)
+        # self.b0 = np.cov(self.data_log_n, self.data_s)[1,0]/np.std(self.data_s)
+        # self.a0 = np.mean(self.data_n) * np.exp(-1.*self.b0 *self.b0 /2)
+        # sol = optimize.root_scalar(f = self._find_k0, bracket=[0, 1000000], method='brentq')
+        # #self.k0 = max(sol.root, 1)
+        # self.k0 = sol.root
+        # self.k = self.k0
+        # self.a = self.a0
+        # self.b = self.b0
         
-        self.b0 = np.cov(self.data_logcellnum, data_s)[1,0]/np.std(data_s)
-        self.a0 = np.mean(data_cellnum) * np.exp(-1.*self.b0 *self.b0 /2)
-        sol = optimize.root_scalar(f = self._find_k0, bracket=[0, 1000000], method='brentq')
-        #self.k0 = max(sol.root, 1)
-        self.k0 = sol.root
-        self.k = self.k0
-        self.a = self.a0
-        self.b = self.b0
-        
-        logp_post = self._log_posterior(data_cell_num, data_selection_coefficient)
-        self.log_normalization_const = self._get_log_normalization_const(logp_post, log_joint_prob)
+        logp_post = self._log_posterior(self.data_n, self.data_s)
+        self.log_normalization_const = self._get_log_normalization_const(logp_post, self.log_joint_prob)
         
     def _find_k0(self, x):
         return scipy.special.polygamma(1,x) - self.var_s
@@ -256,7 +274,7 @@ class S_model_posterior():
         k = x[0]
         a = x[1]
         b = x[2]
-        arr = self.data_logcellnum - b * self.delta_s
+        arr = self.data_log_n - b * self.delta_s
         y0 = k * self.mean_data_logcellnum
         y1 = -1.*k*np.mean(np.exp(arr))/a
         y2 = k*(np.log(k)-np.log(a)) - scipy.special.gammaln(k)
@@ -268,9 +286,10 @@ class S_model_posterior():
         # Maximum Likelihood Estimates MLE: estimates of parameters (k, a, b) of gamm distribuiton
         
         # bounds of parmater: 0 < k < inf, 0 < a < inf, 0 < b < inf
-        bounds = optimize.Bounds([0.0, 1.0, 0.0], [np.inf, np.inf, np.inf])
+        bounds = optimize.Bounds([10**-30, 1.0, 10**-30], [np.inf, np.inf, np.inf])
         method = 'L-BFGS-B'#'TNC' #'L-BFGS-B'
-        sol = optimize.minimize(fun= self._fn_llk_neg, x0 = np.array([self.k0, self.a0, self.b0]), method=method, bounds=bounds)
+        #sol = optimize.minimize(fun= self._fn_llk_neg, x0 = np.array([self.k0, self.a0, self.b0]), method=method, bounds=bounds)
+        sol = optimize.minimize(fun=self._fn_llk_neg, x0=np.array([self.k, self.a, self.b]), method=method, bounds=bounds)
         if sol.success == True:
             self.k = sol.x[0]
             self.a = sol.x[1]
@@ -294,6 +313,30 @@ class S_model_posterior():
         logpn = logpn - scipy.special.gammaln(self.k)
         logp  = logps + logpn
         return logp
+
+    def modified_z_score(self, data):
+        median_val = np.median(data)
+        mad = np.median(np.abs(data - median_val))
+        # Scaling factor for consistency with standard Z-score thresholds
+        mod_z_scores = 0.6745 * (data - median_val) / mad
+        return mod_z_scores
+
+    def filter_data_by_z_score(self, data):
+        # Calculate modified Z-scores
+        mod_z_scores = self.modified_z_score(data)
+        # Define a threshold (e.g., 3.5)
+        threshold = 4.5
+
+        # Find outliers
+        filter_2d = np.abs(mod_z_scores) < threshold
+        # Combine 2d filter to 1d filter
+        filter_2d = np.hsplit(filter_2d, 2)
+        filter1 = filter_2d[0].flatten()
+        filter2 = filter_2d[1].flatten()
+        filter_1d = filter1 & filter2
+
+        return filter_1d
+
     
     
 class N_model_posterior():
@@ -537,3 +580,4 @@ def get_adjusted_meanfitness(t_arr, const, lineage_info):
     f.close()
 
     return sbar_adjust_arr
+
