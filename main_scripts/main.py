@@ -21,18 +21,15 @@ NUMBER_RAND_NEUTRAL = mc.NUMBER_LINEAGE_MLE
 # Function randomly chooses lineages from lins
 #   
 def select_random_lineages(lins):
-    
-    lins_choice =[]
-    
-    for lin in lins:
-        if lin.r0 > 0:
-            lins_choice.append(lin)
-    
-    length = min(NUMBER_RAND_NEUTRAL,len(lins_choice))
-    rand_index = np.random.choice(a=len(lins_choice), size=length, replace=False)
-    lins_ = [ lins_choice[i] for i in list(rand_index)]
-    
-    return lins_
+    valid = [lin for lin in lins if lin.r0 > 0]
+
+    if not valid:
+        return []
+
+    n = min(NUMBER_RAND_NEUTRAL, len(valid))
+    idx = np.random.choice(len(valid), size=n, replace=False)
+    return [valid[i] for i in idx]
+
 
 
 def run_lineages(lins, start_time, end_time, const, lineage_info):
@@ -43,7 +40,7 @@ def run_lineages(lins, start_time, end_time, const, lineage_info):
         for current_time in range(start_time, end_time):
             
             if current_time >0 :
-                
+                print('Time point ' + str(current_time))
                 # READ LINEAGE FROM THE PAST FILES
                 lins = create_lineage_list_by_pastTag(lins, current_time, lineage_info, const)
                 
@@ -52,9 +49,11 @@ def run_lineages(lins, start_time, end_time, const, lineage_info):
                 lins_RAND = select_random_lineages(lins)
 
                 # step2: Maximum likelihood estimate
+                print('Estimate mean fitness')
                 glob.UPDATE_GLOBAL(current_time, const, lineage_info, lins_RAND, '2d')
 
                 # run SModel_S for all lineages
+                print('Compute Bayesian probabilities for lineages')
                 run_dict = {'model_name': MODEL_NAME['SS'], 'lineage_name': lineage_info['lineage_name']}
                 run_model_MCMCmultiprocessing(run_dict, lins, glob)
                 

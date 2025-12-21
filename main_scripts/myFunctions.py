@@ -29,6 +29,8 @@ def posterior_constant_neutral(transition, epsilon, k, theta, read, D):
     #expected_prob_observation = expected_prob_observation.filled(0)
     return expected_prob_observation
 
+
+
 def posterior_constant_selective(transition, epsilon, k, a, b, mean_s, var_s, read, D, C):
     #
     # transition = RD/N * exp(-bar_s * C),
@@ -282,7 +284,7 @@ class S_model_posterior():
         
         return -1.*y
     
-    def maximum_llk_S_Model_GammaDist_Parameters(self): 
+    def maximum_llk_S_Model_GammaDist_Parameters(self):
         # Maximum Likelihood Estimates MLE: estimates of parameters (k, a, b) of gamm distribuiton
         
         # bounds of parmater: 0 < k < inf, 0 < a < inf, 0 < b < inf
@@ -294,8 +296,8 @@ class S_model_posterior():
             self.k = sol.x[0]
             self.a = sol.x[1]
             self.b = sol.x[2]
-        else:
-            print("\n Warning: MLE fails to find optimal value for parameters (k, theta) of gamma distribuiton.")
+        # else:
+        #     print("\n Warning: MLE fails to find optimal value for parameters (k, theta) of gamma distribuiton. BCID={}".format(bcid))
 
         return sol
     
@@ -306,7 +308,12 @@ class S_model_posterior():
     def _log_posterior(self, data_cellnum, data_s):
         # return log of posterior P(s, n) = log P(s) + log P(n|s)
         std_s = np.std(data_s)
-        n2th  = [np.exp( np.log(self.k) + np.log(n) - np.log(self.a) - self.b*(s-self.mean_s)/std_s) for n,s in zip(data_cellnum, data_s)] 
+        data_cellnum = np.asarray(data_cellnum)
+        safe_n = np.clip(data_cellnum, 1e-12, None)
+        safe_a = max(self.a, 1e-12)
+        safe_k = max(self.k, 1e-12)
+        n2th = np.exp(np.log(safe_k) + np.log(safe_n) - np.log(safe_a) - self.b * (data_s - self.mean_s) / std_s)
+        # n2th  = [np.exp( np.log(self.k) + np.log(n) - np.log(self.a) - self.b*(s-self.mean_s)/std_s) for n,s in zip(data_cellnum, data_s)]
         logps = [-1.*(s-self.mean_s)*(s-self.mean_s)/(2*self.var_s)  for s in data_s] 
         logps = logps + -1.*np.log(2*np.pi*std_s*std_s)/2.
         logpn = [self.k*np.log(x) - x - np.log(n) for n,x in zip(data_cellnum, n2th)] 

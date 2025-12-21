@@ -21,6 +21,22 @@ import scipy.stats
 #from scipy import optimize
 from noisyopt import minimizeCompass
 
+from multiprocessing import Pool
+
+_POOL = None
+
+def init_pool():
+    global _POOL
+    if _POOL is None:
+        _POOL = Pool(processes=NUMBER_OF_PROCESSES)
+
+def shutdown_pool():
+    global _POOL
+    if _POOL is not None:
+        _POOL.close()
+        _POOL.join()
+        _POOL = None
+
 #from matplotlib import pyplot as plt
 import myConstant as mc
 
@@ -118,7 +134,7 @@ def maximum_likelihood_function_global_variable2d(glob, lins, const, t):
     sol = minimizeCompass(func=neg_likelihood_function_global_variable_multiprocessing2d,
                           bounds=bounds, x0=x0, args=(glob, lins),
                           feps=0.001, deltatol=0.01, errorcontrol=ERRORCONTROL, funcNinit=30, paired=False)
-    print(sol)
+    # print(sol)
 
     return sol
 
@@ -127,7 +143,7 @@ def neg_likelihood_function_global_variable_multiprocessing2d(x0, glob, lins):
     epsilon = 10**(x0[1])
 
     llk = likelihood_function(meanfitness, epsilon, lins, glob)
-    print(meanfitness, epsilon, llk)
+    # print(meanfitness, epsilon, llk)
     return -1.*llk
 
 #=====================================
@@ -204,17 +220,24 @@ def neg_likelihood_function_meanfitness_multiprocessing(x0, glob, lins, eps):
 # Compute likelihood function value for all lineages including NEU & ADP
 #
 #===========================================================
+def split_lineages(lins):
+    lins_ADP, lins_NEU = [], []
+    for lin in lins:
+        (lins_ADP if lin.TYPETAG == LINEAGE_TAG['ADP'] else lins_NEU).append(lin)
+    return lins_NEU, lins_ADP
+
 def likelihood_function(meanfitness, epsilon, lins, glob):
     llk = 0
-    lins_NEU = []
-    lins_ADP = []
-    
-    for lin in lins:
-        if lin.TYPETAG == LINEAGE_TAG['ADP']:
-            lins_ADP.append(lin)
-        else:
-            lins_NEU.append(lin)
-            
+    # lins_NEU = []
+    # lins_ADP = []
+    #
+    # for lin in lins:
+    #     if lin.TYPETAG == LINEAGE_TAG['ADP']:
+    #         lins_ADP.append(lin)
+    #     else:
+    #         lins_NEU.append(lin)
+
+    lins_NEU, lins_ADP = split_lineages(lins)
     if len(lins_NEU)>0:
         llk += compute_likelihood_multiprocessing(LINEAGE_TAG['NEU'], lins_NEU, glob, meanfitness, epsilon)
     if len(lins_ADP) > 0:
@@ -232,65 +255,126 @@ def likelihood_function(meanfitness, epsilon, lins, glob):
 #        the posterior information is saved in Queue
 #===========================================================        
 def compute_likelihood_multiprocessing(lineage_type, lins, glob, meanfitness, epsilon):
-    
+    init_pool()
     #model_name = run_dict['model_name']
     
-    Input_data_array = get_Input_data_array(lineage_type, lins, glob, meanfitness, epsilon)
-    
-    # TASK is a list of task for lineages with function-to-work and input data
-    
+    # Input_data_array = get_Input_data_array(lineage_type, lins, glob, meanfitness, epsilon)
+    #
+    # # TASK is a list of task for lineages with function-to-work and input data
+    #
+    # if lineage_type == LINEAGE_TAG['NEU']:
+    #     TASKS = [(posterior_constant_neutral_multiporcessing, Input_data_array[i])  for i in range(len(lins))]
+    # elif  lineage_type == LINEAGE_TAG['ADP']:
+    #     TASKS = [(posterior_constant_selective_multiporcessing, Input_data_array[i])  for i in range(len(lins))]
+    #
+    # # Create queues
+    # task_queue = Queue()
+    # done_queue = Queue()
+    #
+    # # Submit tasks (put into queue)
+    # for task in TASKS:
+    #     task_queue.put(task)
+    #
+    # # Start worker processes
+    # for i in range(NUMBER_OF_PROCESSES):
+    #     p=Process(target=worker, args=(task_queue, done_queue))
+    #     p.start()
+    #
+    # # Tell child processes to stop
+    # for i in range(NUMBER_OF_PROCESSES):
+    #     task_queue.put('STOP')
+    #
+    # llk = 0
+    # # queue to likelihood
+    # for i in range(len(lins)):
+    #     result = done_queue.get()
+    #     llk += np.log( float(result['p']))
+    #
+    # # return  likelihood
+    # out = llk#/len(lins)
+    # return out
+    input_data = get_Input_data_array(
+        lineage_type, lins, glob, meanfitness, epsilon
+    )
+
     if lineage_type == LINEAGE_TAG['NEU']:
-        TASKS = [(posterior_constant_neutral_multiporcessing, Input_data_array[i])  for i in range(len(lins))]    
-    elif  lineage_type == LINEAGE_TAG['ADP']:
-        TASKS = [(posterior_constant_selective_multiporcessing, Input_data_array[i])  for i in range(len(lins))]
-    
-    # Create queues
-    task_queue = Queue()
-    done_queue = Queue()
-    
-    # Submit tasks (put into queue)
-    for task in TASKS:
-        task_queue.put(task)
+        func = posterior_constant_neutral_multiporcessing
+    else:
+        func = posterior_constant_selective_multiporcessing
 
-    # Start worker processes
-    for i in range(NUMBER_OF_PROCESSES):
-        p=Process(target=worker, args=(task_queue, done_queue))
-        p.start()
-    
-    # Tell child processes to stop
-    for i in range(NUMBER_OF_PROCESSES):
-        task_queue.put('STOP')
-    
-    llk = 0
-    # queue to likelihood
-    for i in range(len(lins)):
-        result = done_queue.get()
-        llk += np.log( float(result['p']))
-    
-    # return  likelihood
-    out = llk#/len(lins)
-    return out
+    results = _POOL.map(func, input_data)
 
+    llk = 0.0
+    for r in results:
+        p = max(r['p'], 1e-300)  # numerical safety
+        llk += np.log(p)
+
+    return llk
+
+# def get_Input_data_array(lineage_type, lins, glob, meanfitness, epsilon):
+#     RD = glob.R
+#     N = glob.N
+#     dilution_ratio = glob.D
+#     cycle = glob.C
+#
+#     Input_data_array=[]
+#
+#     if lineage_type == LINEAGE_TAG['ADP']:
+#         Input_data_array = [{ 'meanfitness': meanfitness, 'epsilon': epsilon, 'k': lin.sm.post_parm_Gamma_k, 'a': lin.sm.post_parm_Gamma_a,
+#                              'b': lin.sm.post_parm_Gamma_b, 'mean_s': lin.sm.post_parm_NormS_mean, 'var_s': lin.sm.post_parm_NormS_var,
+#                              'dilution_ratio': dilution_ratio,  'cycle': cycle,'read_depth': RD, 'population_size': N,
+#                              'read': lin.r1} for lin in lins]
+#     else:
+#         Input_data_array = [{ 'meanfitness': meanfitness, 'epsilon': epsilon, 'k': lin.nm.post_parm_Gamma_k, 'theta': lin.nm.post_parm_Gamma_theta,
+#                              'dilution_ratio': dilution_ratio,  'cycle': cycle,'read_depth': RD, 'population_size': N,
+#                              'read': lin.r1} for lin in lins]
+#
+#     return Input_data_array
 def get_Input_data_array(lineage_type, lins, glob, meanfitness, epsilon):
     RD = glob.R
     N = glob.N
-    dilution_ratio = glob.D
-    cycle = glob.C
-    
-    Input_data_array=[]
-    
-    if lineage_type == LINEAGE_TAG['ADP']:
-        Input_data_array = [{ 'meanfitness': meanfitness, 'epsilon': epsilon, 'k': lin.sm.post_parm_Gamma_k, 'a': lin.sm.post_parm_Gamma_a,
-                             'b': lin.sm.post_parm_Gamma_b, 'mean_s': lin.sm.post_parm_NormS_mean, 'var_s': lin.sm.post_parm_NormS_var,
-                             'dilution_ratio': dilution_ratio,  'cycle': cycle,'read_depth': RD, 'population_size': N, 
-                             'read': lin.r1} for lin in lins]
-    else:
-        Input_data_array = [{ 'meanfitness': meanfitness, 'epsilon': epsilon, 'k': lin.nm.post_parm_Gamma_k, 'theta': lin.nm.post_parm_Gamma_theta, 
-                             'dilution_ratio': dilution_ratio,  'cycle': cycle,'read_depth': RD, 'population_size': N, 
-                             'read': lin.r1} for lin in lins]
-    
-    return Input_data_array
+    D = glob.D
+    C = glob.C
 
+    Input_data_array = []
+
+    if lineage_type == LINEAGE_TAG['ADP']:
+        # tuple: (meanfitness, epsilon, k, a, b, mean_s, var_s, dilution, cycle, read_depth, population_size, read)
+        Input_data_array = [
+            (
+                meanfitness,
+                epsilon,
+                lin.sm.post_parm_Gamma_k,
+                lin.sm.post_parm_Gamma_a,
+                lin.sm.post_parm_Gamma_b,
+                lin.sm.post_parm_NormS_mean,
+                lin.sm.post_parm_NormS_var,
+                D,
+                C,
+                RD,
+                N,
+                lin.r1
+            )
+            for lin in lins
+        ]
+    else:
+        # tuple: (meanfitness, epsilon, k, theta, dilution, cycle, read_depth, population_size, read)
+        Input_data_array = [
+            (
+                meanfitness,
+                epsilon,
+                lin.nm.post_parm_Gamma_k,
+                lin.nm.post_parm_Gamma_theta,
+                D,
+                C,
+                RD,
+                N,
+                lin.r1
+            )
+            for lin in lins
+        ]
+
+    return Input_data_array
 #
 # Function run by worker processes
 #   
@@ -307,73 +391,107 @@ def worker(input_q, output_q):
 # Main Functions be computed in multiprocessing
 #
 #=============================#
-def posterior_constant_neutral_multiporcessing(input_dict):
-    meanfitness = input_dict['meanfitness']
-    epsilon = input_dict['epsilon']
-    k = input_dict['k']
-    theta = input_dict['theta']
-    read = input_dict['read']
-    D = input_dict['dilution_ratio']
-    C = input_dict['cycle']
-    R = input_dict['read_depth']
-    N = input_dict['population_size']
-    
-    # if cell number = 0, sample zero reads
+# def posterior_constant_neutral_multiporcessing(input_dict):
+#     meanfitness = input_dict['meanfitness']
+#     epsilon = input_dict['epsilon']
+#     k = input_dict['k']
+#     theta = input_dict['theta']
+#     read = input_dict['read']
+#     D = input_dict['dilution_ratio']
+#     C = input_dict['cycle']
+#     R = input_dict['read_depth']
+#     N = input_dict['population_size']
+#
+#     # if cell number = 0, sample zero reads
+#     prob_zero_cell, k1, theta1 = extinct_prob_cycle(k, theta, D, C, meanfitness, 0)
+#     cellnum_arr = np.random.gamma(shape=k1, scale= theta1, size=NUM_SAMPLE)
+#
+#     #n_arr_parameter_observation_NB = cellnum_arr * np.exp( np.log(R)- np.log(N) -np.log(epsilon))
+#     #p_parameter_observation_NB = 1/(1+epsilon)
+#     #prob_observation_NB = scipy.stats.nbinom.pmf(k=read,n=n_arr_parameter_observation_NB,p=p_parameter_observation_NB)
+#
+#     n_parameter_observation_NB = 1/epsilon
+#     ratio = np.exp( np.log(R) - np.log(N) + np.log(epsilon) )
+#     p_arr_parameter_observation_NB = np.exp(-np.log(1+ cellnum_arr*ratio  ))
+#
+#     prob_observation_NB = scipy.stats.nbinom.pmf(k=read,n=n_parameter_observation_NB,p=p_arr_parameter_observation_NB)
+#
+#     expected_prob_observation = (read==0)*prob_zero_cell + (1-prob_zero_cell)*np.mean(prob_observation_NB)
+#     p = expected_prob_observation
+#
+#     return {'p':p}
+def posterior_constant_neutral_multiporcessing(input_tuple):
+    meanfitness, epsilon, k, theta, D, C, R, N, read = input_tuple
+
     prob_zero_cell, k1, theta1 = extinct_prob_cycle(k, theta, D, C, meanfitness, 0)
-    cellnum_arr = np.random.gamma(shape=k1, scale= theta1, size=NUM_SAMPLE)
-    
-    #n_arr_parameter_observation_NB = cellnum_arr * np.exp( np.log(R)- np.log(N) -np.log(epsilon))
-    #p_parameter_observation_NB = 1/(1+epsilon)
-    #prob_observation_NB = scipy.stats.nbinom.pmf(k=read,n=n_arr_parameter_observation_NB,p=p_parameter_observation_NB)
-    
-    n_parameter_observation_NB = 1/epsilon
-    ratio = np.exp( np.log(R) - np.log(N) + np.log(epsilon) )
-    p_arr_parameter_observation_NB = np.exp(-np.log(1+ cellnum_arr*ratio  ))
-    
-    prob_observation_NB = scipy.stats.nbinom.pmf(k=read,n=n_parameter_observation_NB,p=p_arr_parameter_observation_NB)
-    
-    expected_prob_observation = (read==0)*prob_zero_cell + (1-prob_zero_cell)*np.mean(prob_observation_NB)
-    p = expected_prob_observation
+    cellnum_arr = np.random.gamma(shape=k1, scale=theta1, size=NUM_SAMPLE)
 
-    return {'p':p}
+    n_parameter_observation_NB = 1 / epsilon
+    ratio = np.exp(np.log(R) - np.log(N) + np.log(epsilon))
+    p_arr_parameter_observation_NB = np.exp(-np.log(1 + cellnum_arr * ratio))
+
+    prob_observation_NB = scipy.stats.nbinom.pmf(k=read, n=n_parameter_observation_NB, p=p_arr_parameter_observation_NB)
+    expected_prob_observation = (read == 0) * prob_zero_cell + (1 - prob_zero_cell) * np.mean(prob_observation_NB)
+
+    return {'p': expected_prob_observation}
 
 
-def posterior_constant_selective_multiporcessing(input_dict):
-    meanfitness = input_dict['meanfitness']
-    epsilon = input_dict['epsilon']
-    read = input_dict['read']
-    k = input_dict['k']
-    a = input_dict['a']
-    b = input_dict['b']
-    mean_s  = input_dict['mean_s']
-    std_s = np.sqrt(input_dict['var_s'])
-    D = input_dict['dilution_ratio']
-    C = input_dict['cycle']
-    R = input_dict['read_depth']
-    N = input_dict['population_size']
-    
-    #p_parameter_observation_NB = 1/(1+epsilon)
-    #ratio = np.exp( np.log(R)- np.log(N) -np.log(epsilon))
-    
+# def posterior_constant_selective_multiporcessing(input_dict):
+#     meanfitness = input_dict['meanfitness']
+#     epsilon = input_dict['epsilon']
+#     read = input_dict['read']
+#     k = input_dict['k']
+#     a = input_dict['a']
+#     b = input_dict['b']
+#     mean_s  = input_dict['mean_s']
+#     std_s = np.sqrt(input_dict['var_s'])
+#     D = input_dict['dilution_ratio']
+#     C = input_dict['cycle']
+#     R = input_dict['read_depth']
+#     N = input_dict['population_size']
+#
+#     #p_parameter_observation_NB = 1/(1+epsilon)
+#     #ratio = np.exp( np.log(R)- np.log(N) -np.log(epsilon))
+#
+#     s_arr = np.random.normal(loc=mean_s, scale=std_s, size=NUM_SAMPLE)
+#     theta_arr = np.exp(b*(s_arr-mean_s)/std_s + np.log(a) - np.log(k))
+#     prob_zero_cell_arr, k1_arr, theta1_arr = extinct_prob_cycle(k, theta_arr, D, C, meanfitness, s_arr)
+#     cellnum_arr = np.random.gamma(shape=k1_arr, scale= theta1_arr)
+#
+#
+#     n_parameter_observation_NB = 1/epsilon
+#     ratio = np.exp( np.log(R) - np.log(N) + np.log(epsilon) )
+#     p_arr_parameter_observation_NB = np.exp(-np.log(1+ cellnum_arr*ratio  ))
+#
+#     #n_arr_parameter_observation_NB = cellnum_arr * ratio
+#
+#     prob_observation_NB = scipy.stats.nbinom.pmf(k=read,n=n_parameter_observation_NB,p=p_arr_parameter_observation_NB)
+#
+#     prob_zero_cell = np.mean(prob_zero_cell_arr)
+#     expected_prob_observation = (read==0)*prob_zero_cell + (1-prob_zero_cell)*np.mean(prob_observation_NB)
+#     p = expected_prob_observation
+#
+#     return {'p':p}
+def posterior_constant_selective_multiporcessing(input_tuple):
+    meanfitness, epsilon, k, a, b, mean_s, var_s, D, C, R, N, read = input_tuple
+    std_s = np.sqrt(var_s)
+
     s_arr = np.random.normal(loc=mean_s, scale=std_s, size=NUM_SAMPLE)
-    theta_arr = np.exp(b*(s_arr-mean_s)/std_s + np.log(a) - np.log(k))
+    theta_arr = np.exp(b * (s_arr - mean_s) / std_s + np.log(a) - np.log(k))
+
     prob_zero_cell_arr, k1_arr, theta1_arr = extinct_prob_cycle(k, theta_arr, D, C, meanfitness, s_arr)
-    cellnum_arr = np.random.gamma(shape=k1_arr, scale= theta1_arr)
-    
-    
-    n_parameter_observation_NB = 1/epsilon
-    ratio = np.exp( np.log(R) - np.log(N) + np.log(epsilon) )
-    p_arr_parameter_observation_NB = np.exp(-np.log(1+ cellnum_arr*ratio  ))
-    
-    #n_arr_parameter_observation_NB = cellnum_arr * ratio
-    
-    prob_observation_NB = scipy.stats.nbinom.pmf(k=read,n=n_parameter_observation_NB,p=p_arr_parameter_observation_NB)
-    
+    cellnum_arr = np.random.gamma(shape=k1_arr, scale=theta1_arr)
+
+    n_parameter_observation_NB = 1 / epsilon
+    ratio = np.exp(np.log(R) - np.log(N) + np.log(epsilon))
+    p_arr_parameter_observation_NB = np.exp(-np.log(1 + cellnum_arr * ratio))
+
+    prob_observation_NB = scipy.stats.nbinom.pmf(k=read, n=n_parameter_observation_NB, p=p_arr_parameter_observation_NB)
+
     prob_zero_cell = np.mean(prob_zero_cell_arr)
-    expected_prob_observation = (read==0)*prob_zero_cell + (1-prob_zero_cell)*np.mean(prob_observation_NB)
-    p = expected_prob_observation
-        
-    return {'p':p}
+    expected_prob_observation = (read == 0) * prob_zero_cell + (1 - prob_zero_cell) * np.mean(prob_observation_NB)
+
+    return {'p': expected_prob_observation}
 
 #=============================#
 #
