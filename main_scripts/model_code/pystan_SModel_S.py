@@ -10,7 +10,6 @@ A. Stan code model, defines data, parameters, and stochastic process.
 B. Compile the c++ code model in part A, and save the compiled code.
 C. Run the compiled code & test.
 """
-
 # for compiling stan code
 import pystan
 import pickle
@@ -27,6 +26,47 @@ import MEE_Functions as mf
 
 import scipy
 import time
+
+# silence_pystan_output credited by https://gist.github.com/ahartikainen/06192df9719031cf1a22b887b7b5d67b
+import logging
+import sys
+import threading
+# silence logger, there are better ways to do this
+# see PyStan docs
+logging.getLogger("pystan").propagate=False
+logger = logging.getLogger("httpstan")
+logger.setLevel(logging.ERROR)
+
+def drain_pipe(captured_stdout, stdout_pipe):
+    while True:
+        data = os.read(stdout_pipe[0], 1024)
+        if not data:
+            break
+        captured_stdout += data
+
+
+def capture_output(function, *args, **kwargs):
+    """
+    https://stackoverflow.com/questions/24277488/in-python-how-to-capture-the-stdout-from-a-c-shared-library-to-a-variable
+    """
+    stdout_fileno = sys.stdout.fileno()
+    stdout_save = os.dup(stdout_fileno)
+    stdout_pipe = os.pipe()
+    os.dup2(stdout_pipe[1], stdout_fileno)
+    os.close(stdout_pipe[1])
+
+    captured_stdout = b''
+
+    t = threading.Thread(target=lambda:drain_pipe(captured_stdout, stdout_pipe))
+    t.start()
+    # run user function
+    result = function(*args, **kwargs)
+    os.close(stdout_fileno)
+    t.join()
+    os.close(stdout_pipe[0])
+    os.dup2(stdout_save, stdout_fileno)
+    os.close(stdout_save)
+    return result, captured_stdout.decode("utf-8")
 
 MODEL_NAME = {'I': 'InitModel', 'N': 'NModel', 'SN': 'SModel_N', 'SS': 'SModel_S'}
 
@@ -53,8 +93,14 @@ functions {
             return logp_cellnum;
         }
         real survival_prob_one_dilution(real k, real theta, real dilution_ratio)
-        {
-            return 1-exp(-k*log(1+theta/dilution_ratio));
+        {   
+            real p_min = k*theta/(k*theta+theta+dilution_ratio)+0.01;
+            real p =  1-exp(-k*log(1+theta/dilution_ratio));
+            if (p < p_min){
+                p=p_min;}
+            if (p>1){
+                p=1;}
+            return p;
         }
         vector get_transition_parameters(real k_, real theta_, real cycle_, real dilution_ratio, real growth_factor)
         {
@@ -71,12 +117,23 @@ functions {
             for (n in 1:c)
             {
                 real ps = survival_prob_one_dilution(k, theta, dilution_ratio);
-                real variance_by_conditional_on_survive = exp(log(k) + log(theta))* (1.- 1/ps);
-                real variance_before_growth = dilution_ratio + theta + variance_by_conditional_on_survive;
+                //real variance_by_conditional_on_survive = exp(log(k) + log(theta))* (1.- 1/ps);
+                //real variance_before_growth = dilution_ratio + theta + variance_by_conditional_on_survive;
+                //real theta_1 = 1;
+                //real ps=1;
+                real tmp = ps*(theta + dilution_ratio)  + (ps-1)* k*theta;
+                real k1 = exp(log(k)+log(theta)-log(tmp));
+                real theta1 = exp(log(tmp)+log(growth_factor)-log(ps));
                 
+                
+                
+                k = k1;
+                theta = theta1;
                 p_survive *= ps;
-                k *=  theta/variance_before_growth/ps;
-                theta = growth_factor * variance_before_growth;
+                //k *=  theta/variance_before_growth/ps;
+                //theta = growth_factor * variance_before_growth;
+                
+                
             }
             
             out[1] = p_survive;
@@ -98,11 +155,11 @@ data {
       
       // parameters of Analytical Prior distribution
       
-      real             mean_s;           // mean of normal distribution of selection coefficient
-      real<lower=0>    var_s;            // variance of normal distribution of selection coefficient
-      real<lower=0>    k_;               // shape parameter of Gamma distribution
-      real<lower=0>    a_;               // hyper-parameter for scale parameter of Gamma distribution
-      real<lower=0>    b_;               // hyper-parameter for scale parameter of Gamma distribution
+      real                      mean_s;           // mean of normal distribution of selection coefficient
+      real<lower=0>             var_s;            // variance of normal distribution of selection coefficient
+      real<lower=0>      k_;               // shape parameter of Gamma distribution
+      real<lower=0>      a_;               // hyper-parameter for scale parameter of Gamma distribution
+      real<lower=0>      b_;               // hyper-parameter for scale parameter of Gamma distribution
       
       // the following are global variables = constant for stochastic model, 
       //    but set by input becasue value could be different at different time point
@@ -117,7 +174,7 @@ data {
       // if epsilon = 0, then measure process becomes Poisson (VMR=1)
       // if epsilon = 1  then variance ~ mean ^2 for all results except of zero read count (VMR ~2)
       //
-      real<lower=0> epsilon;                      // measurement dispersion
+      real<lower=10^(-10)> epsilon;                      // measurement dispersion
 
 }
 
@@ -127,8 +184,8 @@ data {
 // ================================================
 parameters {
 
-            real<lower=0>   cell_num; 
-            real            selection_coefficient;
+            real<lower=10^(-3), upper = population_size>    cell_num; 
+            real<lower=-10, upper = 10>                     selection_coefficient;
 }
 
 // ================================================
@@ -144,8 +201,8 @@ transformed parameters {
         real<lower=0> growth_factor         = exp(selection_coefficient-meanfitness);
         vector[3] transition_parameters     = get_transition_parameters(k_, theta_, cycle, dilution_ratio, growth_factor);
         
-        real            log_mu_r            = log(cell_num) +  log(read_depth) - log(population_size);                                                    // the expected value of measured barcode-count based on random variable cell-number
-        real<lower=0>   phi                 = 1/epsilon;         
+        real                   log_mu_r            = log(cell_num) +  log(read_depth) - log(population_size);                                                    // the expected value of measured barcode-count based on random variable cell-number
+        real<lower=10^(-10)>   phi                 = 1/epsilon;         
 }
 
 // ================================================
@@ -199,9 +256,9 @@ if __name__ == '__main__':
     
     model_code = pystan_modelcode_S_model_S
     
-    #
+
     # Compile stan model code and Save compiled model by pickle
-    # 
+
     
     # StanModel: Model described in Stan’s modeling language compiled from C++ code.
     print('Compile stan code model')
@@ -211,11 +268,12 @@ if __name__ == '__main__':
     script_path =  os.path.dirname(os.path.realpath(__file__))
     with open(script_path+'/'+model_name+'.pkl', 'wb') as pickle_file:
         pickle.dump(model, pickle_file, protocol=pickle.HIGHEST_PROTOCOL)
-    
+
     
     # Part C
     # Run and test pystan model
-    # 
+    #
+    script_path = os.path.dirname(os.path.realpath(__file__))
     print('Open compiled model')
     with open(script_path+'/'+model_name+'.pkl', 'rb') as pickle_file:
         model_load = pickle.load(pickle_file)
@@ -243,7 +301,7 @@ if __name__ == '__main__':
     print('Setting for sampling')
     # setting of MCMC sampling
     now = time.time()
-    chain_num = 4
+    chain_num = 1
     iter_steps = 3500
     burns = 500
     pars = ['cell_num', 'selection_coefficient' , 'log_joint_prob','prob_survive'] # only output those parameters
@@ -251,13 +309,17 @@ if __name__ == '__main__':
     n_jobs = 1
     # MCMC sampling
     print('Start sampling')
-    fit = model_load.sampling(pars=pars ,data=input_data, warmup=burns, iter=iter_steps, 
-                              chains=chain_num, n_jobs=n_jobs, algorithm=algorithm)
+
+    fit, _ = capture_output(model_load.sampling, pars=pars ,data=input_data, warmup=burns, iter=iter_steps,
+                              chains=chain_num, n_jobs=n_jobs, algorithm=algorithm,  refresh = 0)
+
+    # fit = model_load.sampling(pars=pars ,data=input_data, warmup=burns, iter=iter_steps,
+    #                           chains=chain_num, n_jobs=n_jobs, algorithm=algorithm, refresh = -1)
     
     #expected_logn = np.log(N)-np.log(RD) + np.log(bc_count)
     #expected_s = (expected_logn - np.log(k) - np.log(theta))/cycle - meanfitness
     # Print out results
-    print(fit)
+    # print(fit)
     print(f'Time (s) on sampling: {time.time()-now}')
     
     result = fit.extract(permuted=True)

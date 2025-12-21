@@ -1,0 +1,19 @@
+===Print value of Globals===
+Current time point (integer)	2
+Measurment_dispersion_epsilon	0.027353828417465
+Mean_Fitness	0.12833371094682644
+Total_Read	1001851.0
+Number_of_Cell_before_Dilution	256000000.0
+Dilution_Ratio	100.0
+Number_of_Transition_Cycle_between_Time_point	2.0
+Number_of_lineage_to_fit_Global	3000
+
+===Fitting meanfitness and epsilon===
+
+ message: convergence within deltatol. dim 0 is free at optimum. dim 1 is free at optimum
+ success: True
+     fun: 4.874128335988568
+       x: [ 1.283e-01 -1.563e+00]
+     nit: 12
+    nfev: 39
+    free: [ True  True]
