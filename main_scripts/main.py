@@ -21,18 +21,14 @@ NUMBER_RAND_NEUTRAL = mc.NUMBER_LINEAGE_MLE
 # Function randomly chooses lineages from lins
 #   
 def select_random_lineages(lins):
-    
-    lins_choice =[]
-    
-    for lin in lins:
-        if lin.r0 > 0:
-            lins_choice.append(lin)
-    
-    length = min(NUMBER_RAND_NEUTRAL,len(lins_choice))
-    rand_index = np.random.choice(a=len(lins_choice), size=length, replace=False)
-    lins_ = [ lins_choice[i] for i in list(rand_index)]
-    
-    return lins_
+    valid = [lin for lin in lins if lin.r0 > 0]
+
+    if not valid:
+        return []
+
+    n = min(NUMBER_RAND_NEUTRAL, len(valid))
+    idx = np.random.choice(len(valid), size=n, replace=False)
+    return [valid[i] for i in idx]
 
 
 #def run_lineages(lins, start_time, end_time, const, lineage_info):
@@ -78,8 +74,8 @@ if __name__ == '__main__':
     case_name = 'Simulation_test_initializing_feature'
 
     lineage_info = {'lineage_name': case_name + '_v7'}
-    lineage_info.update({'initializing_lineage_filename': initializing_lineage_filename})
-    lineage_info.update({'file_start_time': file_start_time})
+    lineage_info.update({'initializing_lineage_filename': mc.initializing_lineage_filename})
+    lineage_info.update({'file_start_time': mc.FILE_START_TIME})
 
     # ##################################
     # Run & output results
