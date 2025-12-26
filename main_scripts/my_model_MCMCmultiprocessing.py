@@ -246,25 +246,68 @@ def capture_output(function, *args, **kwargs):
     return result, b"".join(buffer).decode("utf-8")
 
 # ----------------- Lineage helpers -----------------
-def create_lineage_list_by_pastTag(lins, current_time, lineage_info, const):
-    """Create lineage list using past timepoint information"""
-    last_time = current_time - 1
+# def create_lineage_list_by_pastTag(lins, current_time, lineage_info, const):
+#     """Create lineage list using past timepoint information"""
+#     last_time = current_time - 1
+#
+#     for lin in lins:
+#         lin.set_reads(last_time=last_time)
+#
+#     if last_time == 0:
+#         for lin in lins:
+#             mu_r = float(0.001 + lin.r0)
+#             k = mu_r / (1 + mu_r * const.eps)
+#             theta = (1 + mu_r * const.eps) / const.Rt[0] * const.Nt[0]
+#             lin.nm.UPDATE_POST_PARM(k=k, theta=theta, log_norm=0., log_prob_survive=0.)
+#             lin.sm.UPDATE_POST_PARM(k=k, a=theta*k, b=0, mean_s=0.0*np.log2(mc.D),
+#                                     var_s=(0.1*np.log2(mc.D))**2, log_norm=0., log_prob_survive=0)
+#             lin._init_TAG()
+#     elif last_time > 0:
+#         lins = [lin for lin in lins if lin.T_END > current_time]
+#         lins = readfile2lineage(lins, lineage_info['lineage_name'], last_time=last_time)
+#
+#     return lins
 
+def create_lineage_list_by_pastTag(lins, current_step, lineage_info, const ):
+
+
+    # Update the reads value to current time
     for lin in lins:
-        lin.set_reads(last_time=last_time)
-
-    if last_time == 0:
+        lin.set_reads(last_time=current_step -1)
+    #
+    # Initialization
+    #
+    if (current_step==1) and (lineage_info['initializing_lineage_filename'] is None):
+        print('Initializing lineage list')
+        #
+        # Initilization of lineage by default
+        #
         for lin in lins:
-            mu_r = float(0.001 + lin.r0)
-            k = mu_r / (1 + mu_r * const.eps)
-            theta = (1 + mu_r * const.eps) / const.Rt[0] * const.Nt[0]
-            lin.nm.UPDATE_POST_PARM(k=k, theta=theta, log_norm=0., log_prob_survive=0.)
-            lin.sm.UPDATE_POST_PARM(k=k, a=theta*k, b=0, mean_s=0.0*np.log2(mc.D),
-                                    var_s=(0.1*np.log2(mc.D))**2, log_norm=0., log_prob_survive=0)
+            mu_r = float((0.001+lin.r0))
+            k = mu_r/(1+mu_r*const.eps)
+            theta = (1+mu_r*const.eps)/const.Rt[0]*const.Nt[0]
+            #lin.nm.UPDATE_POST_PARM(k=lin.r0+0.001, theta=float(const.Nt[0]/const.Rt[0]),  log_norm= 0., log_prob_survive=0.)
+            lin.nm.UPDATE_POST_PARM(k=k, theta=theta, log_norm= 0., log_prob_survive=0.)
+            lin.sm.UPDATE_POST_PARM(k=k, a=theta*k, b=0, mean_s=0.00*np.log2(mc.D), var_s=(0.1*np.log2(mc.D))**2, log_norm=0, log_prob_survive=0)
             lin._init_TAG()
-    elif last_time > 0:
-        lins = [lin for lin in lins if lin.T_END > current_time]
-        lins = readfile2lineage(lins, lineage_info['lineage_name'], last_time=last_time)
+    else:
+        #
+        # Read lineage information from file
+        #
+        if current_step == 1:
+            readfilename = lineage_info['initializing_lineage_filename']
+            print('Initializing lineage list from file', readfilename)
+        else:
+            last_step = current_step - 1
+            T_file_to_read = lineage_info['file_start_time'] - 1 + last_step
+            readfilename = 'posterior_' + lineage_info['lineage_name'] + '_' + MODEL_NAME['SS'] + f"_T{T_file_to_read}.txt"
+
+        lins_survive = []
+        for lin in lins:
+            if lin.T_END > current_step:
+                lins_survive.append(lin)
+        lins = lins_survive
+        lins = readfile2lineage(lins, readfilename=readfilename, last_step=current_step-1)
 
     return lins
 
