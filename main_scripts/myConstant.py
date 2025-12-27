@@ -33,7 +33,7 @@ beta = 3.3                  # criteria to make final lineage call (call adapted 
 # Define the starting "Time point" for this BASIL run. default = 1
 FILE_START_TIME = 1
 # The posterior file (generated from another BASIL run) as the initial states for this BASIL run. default = None
-initializing_lineage_filename =  None # 'posterior_Simulation_20220213_v7_SModel_S_T1.txt'
+initializing_lineage_filename = 'posterior_Simulation_20220213_v7_SModel_S_T1.txt'#  None # 'posterior_Simulation_20220213_v7_SModel_S_T1.txt'
 
 
 MODEL_NAME = {'N': 'NModel', 'SN': 'SModel_N', 'SS': 'SModel_S'}

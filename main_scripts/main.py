@@ -70,8 +70,7 @@ if __name__ == '__main__':
     # 1. Input Files
     # 
     datafilename = 'Data_BarcodeCount_simuMEE_20220213' + '.txt'  # FileName of Barcode Count data
-    initializing_lineage_filename =  'posterior_Simulation_20220213_v7_SModel_S_T1.txt'
-    file_start_time = 100 # default = 1
+
     #
     # 2. Name of This Run Case
     #

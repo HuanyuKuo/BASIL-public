@@ -311,15 +311,15 @@ def create_lineage_list_by_pastTag(lins, current_step, lineage_info, const ):
 
     return lins
 
-def readfile2lineage(lins, lineage_name, last_time):
+def readfile2lineage(lins, readfilename, last_step):
     """Update lineage objects from previous posterior file"""
-    t = last_time
+    t = last_step
     if len(lins) == 0:
         return lins
 
     bcid_dict = {lin.BCID: i for i, lin in enumerate(lins)}
     read_model_name = MODEL_NAME['SS']
-    readfilename = os.path.join(OutputFileDir, f'posterior_{lineage_name}_{read_model_name}_T{t}.txt')
+    # readfilename = os.path.join(OutputFileDir, f'posterior_{lineage_name}_{read_model_name}_T{t}.txt')
 
     if os.path.exists(readfilename):
         with open(readfilename, 'r') as f:
