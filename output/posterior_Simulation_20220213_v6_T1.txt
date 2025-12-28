@@ -1,1 +1,0 @@
-listID	BCID	TAG	k	a	b	s_mean	s_var	log_normalization	log_prob_survive_cummulated
