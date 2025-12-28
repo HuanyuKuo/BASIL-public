@@ -14,37 +14,48 @@ import os.path
 #
 # read input Barcode count data
 def my_readfile(filename):
-    
-    filedirname = mc.InputFileDir + filename 
     Lins = []
-    
-    f = open(filedirname)
-    line = f.readline()
-    t_arr = line.split('\n')[0].split('\t')[1::]
-    t_cycle = [ float(t.split('cycle')[0].split('=')[1]) for t in t_arr]
-    #cycles = [t_cycle[i+1]-t_cycle[i] for i in range(len(t_cycle)-1)]
-    totalread = np.zeros(len(t_cycle))
-    line = f.readline()
-    while line:
-        reads = line.split('\n')[0].split('\t')
-        BCID = int(reads[0])
-        reads = [ int(r) for r in reads[1::]]
-        totalread += np.asarray(reads)
-        Lins.append(Lineage(reads=reads, BCID=BCID))
-        line = f.readline()
-    f.close()
-    #return Lins, totalread, cycles
+
+    with open(filename, "r") as f:
+        header = f.readline().rstrip("\n").split("\t")[1:]
+        t_cycle = [
+            float(h.split("cycle")[0].split("=")[1])
+            for h in header
+        ]
+
+        totalread = np.zeros(len(t_cycle), dtype=np.int64)
+
+        for lineno, line in enumerate(f, start=2):
+            if not line.strip():
+                continue
+
+            fields = line.rstrip("\n").split("\t")
+            BCID = int(fields[0])
+            reads = np.fromiter(
+                (int(x) for x in fields[1:]),
+                dtype=np.int64,
+                count=len(t_cycle)
+            )
+
+            totalread += reads
+            Lins.append(Lineage(reads=reads, BCID=BCID))
+
+    print(
+        f"[OK] Successfully read '{filename}': "
+        f"{len(Lins)} lineages, "
+        f"{len(t_cycle)} cycles"
+    )
+
     return Lins, totalread, t_cycle
 
 #
 # output global parameters
-def output_global_parameters_BFM(lineage_info, const):
+def output_global_parameters_BFM( const):
     eps_Bayes = []
     meanfitness_Bayes = []
     fdir =  mc.OutputFileDir  
     for t in range(1, const.T):
-        T_file = lineage_info['file_start_time'] - 1 + t
-        fname = fdir + 'glob_'+ lineage_info['lineage_name'] + f'_T{T_file}.txt'
+        fname = fdir + 'glob_'+ mc.case_name + f'_T{t}.txt'
         f =open(fname)
         f.readline()
         f.readline()
@@ -60,7 +71,7 @@ def output_global_parameters_BFM(lineage_info, const):
     #t_Bayes = [(_t_Bayes[i]+_t_Bayes[i+1])/2 for i in range(len(_t_Bayes)-1)]
     t_Bayes = [(const.T_cycle[i]+const.T_cycle[i+1])/2 for i in range(len(const.T_cycle)-1)]
     # Output Mean-fitness file
-    f = open(mc.OutputFileDir + 'Bayesian_global_parameters_'+lineage_info['lineage_name']+'.txt','w')
+    f = open(mc.OutputFileDir + 'Bayesian_global_parameters_'+mc.case_name+'.txt','w')
     f.write('Time (cycle)\tMean-fitness(1/cycle)\tEpsilon\n')
     for i in range(len(t_Bayes)):
         f.write(str(t_Bayes[i])+'\t'+str(meanfitness_Bayes[i])+'\t'+str(eps_Bayes[i])+'\n')
@@ -68,26 +79,26 @@ def output_global_parameters_BFM(lineage_info, const):
     #
     # Make plots
     plt.figure()
-    plt.plot(t_Bayes, meanfitness_Bayes, 'bo-', label= lineage_info['lineage_name'])
+    plt.plot(t_Bayes, meanfitness_Bayes, 'bo-', label= mc.case_name)
     plt.legend()
     plt.xlabel('time (cycle)')
     plt.title('Meanfitness(1/cycle)')
     plt.xlim(0, max(t_Bayes)+1)
-    plt.savefig(mc.OutputFileDir+'meanfitness_trajectory_Bayes_'+lineage_info['lineage_name']+'.png',dpi=200)
+    plt.savefig(mc.OutputFileDir+'meanfitness_trajectory_Bayes_'+mc.case_name+'.png',dpi=200)
     
     plt.figure()
-    plt.plot(t_Bayes, eps_Bayes, 'bo-',label= lineage_info['lineage_name'])
+    plt.plot(t_Bayes, eps_Bayes, 'bo-',label= mc.case_name)
     plt.legend()
     plt.xlabel('time (cycle)')
     plt.xlim(0, max(t_Bayes)+1)
     plt.title('Systematic Error Epsilon')
-    plt.savefig(mc.OutputFileDir +'Epsilon_trajectory_Bayes_'+lineage_info['lineage_name']+'.png',dpi=200)
+    plt.savefig(mc.OutputFileDir +'Epsilon_trajectory_Bayes_'+mc.case_name+'.png',dpi=200)
     
-def read_global_parameters_BFM(lineage_info):
+def read_global_parameters_BFM():
     t_arr_cycle = []
     meanfitness_Bayes_cycle = []
     epsilon_Bayes = []
-    f = open(mc.OutputFileDir + 'Bayesian_global_parameters_'+lineage_info['lineage_name']+'.txt','r')
+    f = open(mc.OutputFileDir + 'Bayesian_global_parameters_'+mc.case_name+'.txt','r')
     f.readline()
     line = f.readline()
     while(line):
@@ -99,24 +110,24 @@ def read_global_parameters_BFM(lineage_info):
     f.close()
     return meanfitness_Bayes_cycle, epsilon_Bayes, t_arr_cycle
 
-def output_Posterior_parameters_Bayes_v5(lineage_info, datafilename): # 2025
+def output_Posterior_parameters_Bayes_v5( datafilename): # 2025
 
     # output the parameters (k,a,b,s_mean, s_var) of parametric posterior for all lineages for all timepoints
 
-    BFM_result, t_arr, _ = read_Posterior_parameters_Bayes_v5(lineage_info, datafilename)
+    BFM_result, t_arr, _ = read_Posterior_parameters_Bayes_v5( datafilename)
 
     print(len(BFM_result))
 
     # Prepare for output
-    case_name = lineage_info['lineage_name']
+    case_name = mc.case_name
     f = open(mc.OutputFileDir + 'BASIL_All_posterior_parameters_' + case_name + '.txt', 'w')
 
-    headline_list = ['k_T{:d}'.format(lineage_info['file_start_time'] - 1 + t)+ '\t'
-                     + 'a_T{:d}'.format(lineage_info['file_start_time'] - 1 + t)+ '\t'
-                     + 'b_T{:d}'.format(lineage_info['file_start_time'] - 1 + t)+ '\t'
-                     + 's_mean_T{:d}'.format(lineage_info['file_start_time'] - 1 + t) + '\t'
-                     + 's_var_T{:d}'.format(lineage_info['file_start_time'] - 1 + t) +'\t'
-                     + 'logZ_T{:d}'.format(lineage_info['file_start_time'] - 1 + t) for t in t_arr]
+    headline_list = ['k_T{:d}'.format( t)+ '\t'
+                     + 'a_T{:d}'.format( t)+ '\t'
+                     + 'b_T{:d}'.format( t)+ '\t'
+                     + 's_mean_T{:d}'.format(  t) + '\t'
+                     + 's_var_T{:d}'.format(  t) +'\t'
+                     + 'logZ_T{:d}'.format(  t) for t in t_arr]
     headline_str ='BCID\t' +  '\t'.join(headline_list) +'\n'
     f.write(headline_str)
 
@@ -140,7 +151,7 @@ def output_Posterior_parameters_Bayes_v5(lineage_info, datafilename): # 2025
     f.close()
     return BFM_result
 
-def read_Posterior_parameters_Bayes_v5(lineage_info, datafilename): # 2025
+def read_Posterior_parameters_Bayes_v5( datafilename): # 2025
 
     lins, totalread, t_cycles = my_readfile(datafilename)
     BCIDs = [lins[i].BCID for i in range(len(lins))]
@@ -160,7 +171,7 @@ def read_Posterior_parameters_Bayes_v5(lineage_info, datafilename): # 2025
 
     for t in t_arr:
         # print(t)
-        tmp_bcids_SS, tmp_s_mean_SS, tmp_s_var_SS, tmp_log_norm_SS, tmp_expected_n_mean_SS, tmp_expected_n_std_SS, tmp_param_k, tmp_param_a, tmp_param_b = get_Posterior_parameters_from_BayesFiles_v5(lineage_info, t)
+        tmp_bcids_SS, tmp_s_mean_SS, tmp_s_var_SS, tmp_log_norm_SS, tmp_expected_n_mean_SS, tmp_expected_n_std_SS, tmp_param_k, tmp_param_a, tmp_param_b = get_Posterior_parameters_from_BayesFiles_v5( t)
         #print(len(tmp_bcids_SS), len(tmp_bcids_N))
         for i in range(len(tmp_bcids_SS)):
 
@@ -182,15 +193,14 @@ def read_Posterior_parameters_Bayes_v5(lineage_info, datafilename): # 2025
 
     return BFM_result, t_arr, t_cycles
 
-def get_Posterior_parameters_from_BayesFiles_v5(lineage_info, t):
+def get_Posterior_parameters_from_BayesFiles_v5( t):
     MODEL_NAME = mc.MODEL_NAME
     OutputFileDir = mc.OutputFileDir
-    lineage_name = lineage_info['lineage_name']
+    lineage_name = mc.case_name
 
     tmp_bcids_SS, tmp_s_mean_SS, tmp_s_var_SS, tmp_log_norm_SS, tmp_expected_n_mean_SS, tmp_expected_n_std_SS = [], [], [], [], [],[]
     tmp_param_k, tmp_param_a, tmp_param_b = [], [], []
-    T_file = lineage_info['file_start_time'] - 1 + t
-    readfilename = 'posterior_' + lineage_name + '_' + MODEL_NAME['SS'] + f"_T{T_file}.txt"
+    readfilename = 'posterior_' + lineage_name + '_' + MODEL_NAME['SS'] + f"_T{t}.txt"
     # print(readfilename)
     if os.path.exists(OutputFileDir + readfilename) is False:
         print('No file ' + OutputFileDir + readfilename + '\n')
@@ -217,15 +227,18 @@ def get_Posterior_parameters_from_BayesFiles_v5(lineage_info, t):
 
     return tmp_bcids_SS, tmp_s_mean_SS, tmp_s_var_SS, tmp_log_norm_SS, tmp_expected_n_mean_SS, tmp_expected_n_std_SS, tmp_param_k, tmp_param_a, tmp_param_b
 
-def output_Selection_Coefficient_Bayes_v5(lineage_info, datafilename, beta=[mc.beta]):
+def output_Selection_Coefficient_Bayes_v5(beta=[3.3]):
 
-    BFM_result, _, t_cycle = read_Posterior_parameters_Bayes_v5(lineage_info, datafilename)
+    BFM_result, _, t_cycle = read_Posterior_parameters_Bayes_v5( mc.data)
 
 
     for _beta in beta:
+
         # Prepare for output
-        case_name = lineage_info['lineage_name']
-        f = open(mc.OutputFileDir + 'BASIL_Selection_Coefficient_for_called_Adapted_' + case_name + '_ConfidenceFactorBeta={:.2f}'.format(_beta)+'.txt', 'w')
+        case_name = mc.case_name
+        fdirname = mc.OutputFileDir + 'BASIL_Selection_Coefficient_for_called_Adapted_' + case_name + '_ConfidenceFactorBeta={:.2f}'.format(_beta)+'.txt'
+        print('Call adapted lineages with Beta=' + str(_beta)+'---->', fdirname)
+        f = open(fdirname, 'w')
         f.write('BCID_Bayes\ts_mean(1/cycle)\ts_std(1/cycle)\tcalled_time(cycle)\n')
 
         bcid_all_result = {}
@@ -283,7 +296,7 @@ def output_Selection_Coefficient_Bayes_v5(lineage_info, datafilename, beta=[mc.b
         #
         # Plot the lineages trajectories, colored by inferred s
         #
-        lins, totalread, t_cycles = my_readfile(datafilename)
+        lins, totalread, t_cycles = my_readfile(mc.data)
 
         log10_total_reads = np.log10(totalread)
 
@@ -350,13 +363,9 @@ def output_Selection_Coefficient_Bayes_v5(lineage_info, datafilename, beta=[mc.b
 
 
 if __name__ == '__main__':
-    
-    datafilename =  'Data_BarcodeCount_simuMEE_20220213' + '.txt'  
-    
-    lins, totalread, cycles = my_readfile(datafilename)
-    _const = Constant(totalread, cycles)
-    for t in range(1, _const.T):
-        _const.Ct[t] = cycles[t-1]
+
+    # -------Read barcode read count-----------#
+    lins, totalread, t_cycles = my_readfile(mc.data)
     
     
     

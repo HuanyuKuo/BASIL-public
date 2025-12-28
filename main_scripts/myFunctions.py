@@ -497,12 +497,12 @@ def make_plot_tmp(bcid_list, type, BFM_result, s_simu_adp, cell_num_simu, bcid_a
             plt.savefig('../output/BFM_fit_' + title + '.png')
             plt.close(fig)
 
-def get_adjusted_meanfitness(t_arr, const, lineage_info):
+def get_adjusted_meanfitness(t_arr, const):
 
     sbar_adjust_arr =[]
     for t in t_arr:
         print(t)
-        tmp_bcids_SS, tmp_s_mean_SS, tmp_s_var_SS, _, _, _ = mr.get_tmp_s_from_BayesFiles_v4(lineage_info, t)
+        tmp_bcids_SS, tmp_s_mean_SS, tmp_s_var_SS, _, _, _ = mr.get_tmp_s_from_BayesFiles_v4(t)
 
         sbar_adjust_it = []
         sbar_adjust =0
@@ -579,7 +579,7 @@ def get_adjusted_meanfitness(t_arr, const, lineage_info):
     t_Bayes = [(_t_Bayes[i] + _t_Bayes[i + 1]) / 2 for i in range(len(_t_Bayes) - 1)]
 
     # Output adjusted Mean-fitness file
-    f = open(mc.OutputFileDir + 'Bayesian_global_parameters_adjust_' + lineage_info['lineage_name'] + '.txt', 'w')
+    f = open(mc.OutputFileDir + 'Bayesian_global_parameters_adjust_' + mc.case_name + '.txt', 'w')
     f.write('Time (cycle)\tAdjusted Mean-fitness(1/cycle)\n')
     for i in range(len(t_arr)):
         t = t_arr[i]

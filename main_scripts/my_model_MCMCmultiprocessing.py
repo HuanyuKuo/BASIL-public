@@ -9,19 +9,21 @@ import sys
 import pickle
 import threading
 import logging
+import numpy as np
 from collections import namedtuple
 from multiprocessing import Pool
 from tqdm import tqdm
-import numpy as np
 import myFunctions as mf
 import myConstant as mc
 
 # ----------------- global variables -----------------
-NUMBER_OF_PROCESSES = mc.NUMBER_OF_PROCESSES
 MODEL_NAME = mc.MODEL_NAME
-OutputFileDir = mc.OutputFileDir
+NUMBER_OF_PROCESSES = mc.NUMBER_OF_PROCESSES
 WRITE_CHUNK = 1000
 _STAN_MODEL = None
+OutputFileDir = mc.OutputFileDir
+INITIALIZING_LINEAGE_FILE = mc.INITIAL_LINEAGES_FROM_FILE
+CASE_NAME = mc.case_name
 
 # ----------------- Stan output logging -----------------
 logging.getLogger("pystan").propagate = False
@@ -76,8 +78,7 @@ def MCMC_sampling_worker(lineage_input):
 def run_model_MCMCmultiprocessing(run_dict, lins, glob):
     """Run MCMC on all lineages with multiprocessing and streaming output"""
     model_name = run_dict['model_name']
-    lineage_name = run_dict['lineage_name']
-
+    lineage_name = CASE_NAME
     outfilename = os.path.join(OutputFileDir,
                                f"posterior_{lineage_name}_{model_name}_T{glob.current_timepoint}.txt")
 
@@ -109,6 +110,7 @@ def _write_results_chunk(results, filename, model_name):
     with open(filename, "a", buffering=1) as f:
         for r in results:
             if r.get("status") != "ok":
+                print("Dropped:", r.get("error"))
                 continue
             assert isinstance(r['listID'], int), r
             assert isinstance(r['BCID'], int), r
@@ -268,17 +270,15 @@ def capture_output(function, *args, **kwargs):
 #
 #     return lins
 
-def create_lineage_list_by_pastTag(lins, current_step, lineage_info, const ):
-
-
+def create_lineage_list_by_pastTag(lins, current_step,  const ):
     # Update the reads value to current time
     for lin in lins:
         lin.set_reads(last_time=current_step -1)
     #
     # Initialization
     #
-    if (current_step==1) and (lineage_info['initializing_lineage_filename'] is None):
-        print('Initializing lineage list')
+    if (current_step==1) and (INITIALIZING_LINEAGE_FILE is None):
+        print('Initialize lineages (default)')
         #
         # Initilization of lineage by default
         #
@@ -295,59 +295,150 @@ def create_lineage_list_by_pastTag(lins, current_step, lineage_info, const ):
         # Read lineage information from file
         #
         if current_step == 1:
-            readfilename = lineage_info['initializing_lineage_filename']
-            print('Initializing lineage list from file', readfilename)
+            fdirname = INITIALIZING_LINEAGE_FILE
+            print('Initialize lineages from file', fdirname)
         else:
             last_step = current_step - 1
-            T_file_to_read = lineage_info['file_start_time'] - 1 + last_step
-            readfilename = 'posterior_' + lineage_info['lineage_name'] + '_' + MODEL_NAME['SS'] + f"_T{T_file_to_read}.txt"
+            fdirname = OutputFileDir + 'posterior_' + mc.case_name + '_' + MODEL_NAME['SS'] + f"_T{last_step}.txt"
 
         lins_survive = []
         for lin in lins:
             if lin.T_END > current_step:
                 lins_survive.append(lin)
         lins = lins_survive
-        lins = readfile2lineage(lins, readfilename=readfilename, last_step=current_step-1)
+        lins = readfile2lineage(lins, fdirname=fdirname, last_step=current_step-1)
 
     return lins
 
-def readfile2lineage(lins, readfilename, last_step):
-    """Update lineage objects from previous posterior file"""
-    t = last_step
-    if len(lins) == 0:
+# def readfile2lineage(lins, readfilename, last_step):
+#     """Update lineage objects from previous posterior file"""
+#     t = last_step
+#     if len(lins) == 0:
+#         return lins
+#
+#     bcid_dict = {lin.BCID: i for i, lin in enumerate(lins)}
+#     read_model_name = MODEL_NAME['SS']
+#     # readfilename = os.path.join(OutputFileDir, f'posterior_{lineage_name}_{read_model_name}_T{t}.txt')
+#
+#     if os.path.exists(readfilename):
+#         with open(readfilename, 'r') as f:
+#             list_of_lines = f.readlines()
+#
+#         list_of_lines[0] = list_of_lines[0].strip() + '\t log10 Bayes Factor\n'
+#
+#         for j in range(1, len(list_of_lines)):
+#             read_line = list_of_lines[j].strip().split('\t')
+#             BCID = int(read_line[1])
+#             if BCID in bcid_dict:
+#                 i = bcid_dict[BCID]
+#                 lins[i].sm.UPDATE_POST_PARM(
+#                     k=float(read_line[3]),
+#                     a=float(read_line[4]),
+#                     b=float(read_line[5]),
+#                     mean_s=float(read_line[6]),
+#                     var_s=float(read_line[7]),
+#                     log_norm=float(read_line[8]),
+#                     log_prob_survive=float(read_line[9])
+#                 )
+#                 log10_BF = lins[i].log10_BayesFactor()
+#                 list_of_lines[j] = list_of_lines[j].strip() + f'\t{log10_BF}\n'
+#
+#         with open(readfilename, 'w') as f:
+#             f.writelines(list_of_lines)
+#
+#         for lin in lins:
+#             lin.reTAG(last_time=t)
+#
+#     return lins
+
+def readfile2lineage(lins, fdirname, last_step):
+    """
+    Parses columns by header name.
+    Update lineage objects from previous posterior file.
+    Remove lineage objects that are NOT present in the file.
+    Only compute/write log10_BayesFactor if the column does NOT already exist.
+    """
+    if not lins:
         return lins
 
-    bcid_dict = {lin.BCID: i for i, lin in enumerate(lins)}
-    read_model_name = MODEL_NAME['SS']
-    # readfilename = os.path.join(OutputFileDir, f'posterior_{lineage_name}_{read_model_name}_T{t}.txt')
+    lin_by_bcid = {lin.BCID: lin for lin in lins}
+    read_bcids = set()   # <-- track which lineages are read
 
-    if os.path.exists(readfilename):
-        with open(readfilename, 'r') as f:
-            list_of_lines = f.readlines()
+    t = last_step
 
-        list_of_lines[0] = list_of_lines[0].strip() + '\t log10 Bayes Factor\n'
+    # ---- FAIL FAST ----
+    if not os.path.exists(fdirname):
+        raise FileNotFoundError(
+            f"[readfile2lineage] Posterior file not found:\n  {fdirname}"
+        )
 
-        for j in range(1, len(list_of_lines)):
-            read_line = list_of_lines[j].strip().split('\t')
-            BCID = int(read_line[1])
-            if BCID in bcid_dict:
-                i = bcid_dict[BCID]
-                lins[i].sm.UPDATE_POST_PARM(
-                    k=float(read_line[3]),
-                    a=float(read_line[4]),
-                    b=float(read_line[5]),
-                    mean_s=float(read_line[6]),
-                    var_s=float(read_line[7]),
-                    log_norm=float(read_line[8]),
-                    log_prob_survive=float(read_line[9])
+    tmp_filename = fdirname + ".tmp"
+
+    with open(fdirname, "r") as fin, open(tmp_filename, "w") as fout:
+        # ---- header ----
+        header = fin.readline().rstrip("\n")
+        cols = header.split("\t")
+
+        has_log10_BF = "log10_BayesFactor" in cols
+        if not has_log10_BF:
+            cols.append("log10_BayesFactor")
+
+        fout.write("\t".join(cols) + "\n")
+        col_idx = {c: i for i, c in enumerate(cols)}
+
+        # ---- data ----
+        for line_no, line in enumerate(fin, start=2):
+            parts = line.rstrip("\n").split("\t")
+
+            try:
+                BCID = int(parts[col_idx["BCID"]])
+            except (KeyError, ValueError, IndexError):
+                fout.write(line)
+                continue
+
+            lin = lin_by_bcid.get(BCID)
+            if lin is None:
+                fout.write(line)
+                continue
+
+            # Mark lineage as present in file
+            read_bcids.add(BCID)
+
+            try:
+                lin.sm.UPDATE_POST_PARM(
+                    k=float(parts[col_idx["k"]]),
+                    a=float(parts[col_idx["a"]]),
+                    b=float(parts[col_idx["b"]]),
+                    mean_s=float(parts[col_idx["s_mean"]]),
+                    var_s=float(parts[col_idx["s_var"]]),
+                    log_norm=float(parts[col_idx["log_normalization"]]),
+                    log_prob_survive=float(parts[col_idx["log_prob_survive_cummulated"]]),
                 )
-                log10_BF = lins[i].log10_BayesFactor()
-                list_of_lines[j] = list_of_lines[j].strip() + f'\t{log10_BF}\n'
+            except Exception:
+                fout.write(line)
+                continue
 
-        with open(readfilename, 'w') as f:
-            f.writelines(list_of_lines)
+            if not has_log10_BF:
+                try:
+                    log10_BF = lin.log10_BayesFactor()
+                except Exception:
+                    log10_BF = "nan"
+                parts.append(str(log10_BF))
 
-        for lin in lins:
-            lin.reTAG(last_time=t)
+            fout.write("\t".join(parts) + "\n")
+
+    os.replace(tmp_filename, fdirname)
+
+    # ---- PRUNE LINEAGES NOT IN FILE ----
+    lins = [lin for lin in lins if lin.BCID in read_bcids]
+
+    # ---- RETAG ONLY REMAINING LINEAGES ----
+    for lin in lins:
+        lin.reTAG(last_time=t)
+
+    # ---- PRINT OUT DROP LINEAGES----
+    dropped = set(lin_by_bcid) - read_bcids
+    if dropped:
+        print(f"[readfile2lineage] Dropped {len(dropped)} lineages not found in file")
 
     return lins

@@ -29,7 +29,7 @@ class Constant():
         self.Rt = total_reads
         #self.smin = mc.smin
         #self.smax = mc.smax
-        self.eps = mc.epsilon
+        self.eps = float(0.01)
         
     def print_values(self):
         print("Total time points\t", self.T, "\t# const.T")
@@ -67,9 +67,8 @@ class Global():
         self.D = float(const.Dt[t])
         self.N = float(const.Nt[t])
         self.C = float(const.Ct[t])
-        
-    #def UPDATE_GLOBAL(self, t, const, lins, lineage_info):
-    def UPDATE_GLOBAL(self, current_time, const, lineage_info, lins_1, dim):
+
+    def UPDATE_GLOBAL(self, current_time, const, lins_1, dim):
         self.update_from_const(const, current_time)
         
         self.meanfitness = 0.0
@@ -79,7 +78,7 @@ class Global():
         #Optimize (ML) meanfitness with given epsilon
             sol1 = llk.maximum_likelihood_function_meanfitness(self, lins_1, const, current_time, self.epsilon)
             self.meanfitness = sol1.x[0]
-            self.outputfile(lineage_info, sol1, len(lins_1))
+            self.outputfile( sol1, len(lins_1))
         elif dim == '2d':
             '''
             #
@@ -91,21 +90,16 @@ class Global():
             # Step2: Optimize (ML) epsilon with fixed meanfitness
             sol2 = llk.maximum_likelihood_function_epsilon(self, lins_1, const, current_time, self.meanfitness)
             self.epsilon = 10**(sol2.x[0])
-            self.outputfile2d(lineage_info, sol1, len(lins_1), sol2, len(lins_1))
+            self.outputfile2d( sol1, len(lins_1), sol2, len(lins_1))
             '''
-            
-            
+
             sol = llk.maximum_likelihood_function_global_variable2d(self, lins_1, const, current_time)
             self.meanfitness = sol.x[0]
             self.epsilon = 10**(sol.x[1])
-            self.outputfile(lineage_info, sol, len(lins_1))
+            self.outputfile( sol, len(lins_1))
 
-        
-    #def outputfile(self, lineage_info, sol1, sol2, N_rand, OutputFileDir):
-    def outputfile(self, lineage_info, sol, N_rand):
-    #def  outputfile(self, lineage_info, sol1, n1, sol2, n2):
-        self.T_file = lineage_info['file_start_time'] - 1 + self.current_timepoint
-        outfilename = 'glob_'+lineage_info['lineage_name']+f"_T{self.T_file}.txt"
+    def outputfile(self,  sol, N_rand):
+        outfilename = 'glob_'+mc.case_name+f"_T{self.current_timepoint}.txt"
         outputfiledirname = OutputFileDir+outfilename
         
         f = open(outputfiledirname, 'w') 
@@ -123,30 +117,7 @@ class Global():
         print(sol, file=f)
 
         f.close()
-    '''
-    #def outputfile2d(self, lineage_info, sol, N_rand):
-    def  outputfile2d(self, lineage_info, sol1, n1, sol2):
-        outfilename = 'glob_'+lineage_info['lineage_name']+f"_T{self.current_timepoint}.txt"
-        outputfiledirname = OutputFileDir+outfilename
-        f = open(outputfiledirname, 'w') 
-        f.write("===Print value of Globals===\n")
-        f.write(f"Current time point (integer)\t{self.current_timepoint}\n")
-        f.write(f"Measurment_dispersion_epsilon\t{self.epsilon}\n")
-        f.write(f"Mean_Fitness\t{self.meanfitness}\n")
-        f.write(f"Total_Read\t{self.R}\n")
-        f.write(f"Number_of_Cell_before_Dilution\t{self.N}\n")
-        f.write(f"Dilution_Ratio\t{self.D}\n")
-        f.write(f"Number_of_Transition_Cycle_between_Time_point\t{self.C}\n")
-        
-        f.write("\n===Fitting mean-fitness===\n\n")
-        f.write(f"Number_of_lineage_to_fit\t{n1}\n")
-        print(sol1, file=f)
-        f.write("\n===Fitting epsilon===\n\n")
-        f.write(f"Number_of_lineage_to_fit\t{n1}\n")
-        print(sol2, file=f)
-        
-        f.close()
-    '''
+
     def import_value_array(self, arr):
         # import global value from array
         self.meanfitness = arr[0]

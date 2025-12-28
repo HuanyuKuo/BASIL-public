@@ -50,32 +50,30 @@ Here is an example of output image.
     ```
 4. This program can use multi processors to speed up MCMC calculations. A multi CPU-core environment is highly recommended. 
 
-## Data Setting
-1. Set parameters. Open "./main_scripts/myConstant.py". Edit **NUMBER_OF_PROCESSES** and **EXPERIMENTAL PARAMETERS** for your case.
-    ```sh
-    NUMBER_OF_PROCESSES = ENTER YOUR NUMBER OF PROCESSES
-    D = ENTER YOUR DILUTION FACTOR
-    N = ENTER YOUR CARRYING CAPACITY i.e., total population size before dilution
-    ```
-2. For input data, place your barcode-count data (txt file) under "./input/", with barcodes=row and time-point=column. The unit of time must be in cycle, not generations.
-3. Test your input data. Open "./main_scripts/myReadfile.py". Make **datafilename** as your input file name. 
-    ```sh
-    datafilename =  YOUR INPUT DATA NAME (barcode-count)
-    ```
-    Then run "myReadfile.py" to test the file reading.
-    ```sh
-    python myReadfile.py
-    ```
-## Run BASIL program
-1. Open "./main_scripts/main.py". Edit **datafilename** & **case_name** for your analysis.
-    ```sh
-    datafilename =  YOUR INPUT DATA NAME (barcode-count)
-    case_name = NAME THIS RUNNING CASE
-    ```
-2. Run BASIL analysis in a command window. 
+## Data Setting & Run BASIL program
+1. Run BASIL with provided simulation data. Go to "./main_scripts/". Run BASIL analysis.
     ```sh
     python main.py
     ```
+   At the end, it will generate several output files in "./output/".
+2. Adjust the following values in "./main_scripts/myConstant.py"  for your case.
+    ```sh
+    data = FILE NAME OF YOUR BARCODE READ COUNT DATA
+    case_name = NAME OF THIS BASIL RUN
+    OutputFileDir = DIRECTORY OF OUTPUTFILE
+    NUMBER_OF_PROCESSES = ENTER YOUR NUMBER OF PROCESSES
+    D = DILUTION FACTOR
+    N = CARRYING CAPACITY i.e., total population size before dilution
+    ```
+3. Test your input data. 
+    ```sh
+    python myReadfile.py
+    ```
+4. Run BASIL analysis. 
+    ```sh
+    python main.py
+    ```
+
 ## Guide to Package Installation
 I run BASIL program with Pycharm under WSL (Windows Subsystem for Linux). This installation guide should work for Windows/Linux user. 
 

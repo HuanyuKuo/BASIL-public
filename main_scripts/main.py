@@ -6,14 +6,12 @@ Created on Tue Aug 14 09:50:31 2020
 """
 
 import numpy as np
-
 import myConstant as mc
 import myReadfile as mr
 from myVariables import (Constant, Global, Lineage)
 from my_model_MCMCmultiprocessing import run_model_MCMCmultiprocessing, create_lineage_list_by_pastTag
 
 MODEL_NAME = mc.MODEL_NAME
-LINEAGE_TAG = mc.LINEAGE_TAG
 OutputFileDir = mc.OutputFileDir
 NUMBER_RAND_NEUTRAL = mc.NUMBER_LINEAGE_MLE
 
@@ -31,17 +29,21 @@ def select_random_lineages(lins):
     return [valid[i] for i in idx]
 
 
-#def run_lineages(lins, start_time, end_time, const, lineage_info):
-def run_lineages(lins, const, lineage_info):
+def run_BASIL(start_step=1):
 
+    # -------Read barcode read count-----------#
+    lins, totalread, t_cycles = mr.my_readfile(mc.data)
+
+    # -------Set up Constant and Global variable ---#
+    const = Constant(totalread, t_cycles)
     glob = Global(const)
 
-    for current_step in range(1, const.T):
-
-        print('Time step ' + str(current_step))
+    # -------Start BASIL analysis for each time point ----#
+    for current_step in range(start_step, const.T):
+        print('Time step ' + str(current_step) )
 
         # READ LINEAGE FROM THE PAST FILES
-        lins = create_lineage_list_by_pastTag(lins, current_step, lineage_info, const)
+        lins = create_lineage_list_by_pastTag(lins, current_step, const)
 
         # UPDATE GLOBAL VARIABLE
         # step1: Choose random lineage for likelihood function
@@ -49,51 +51,22 @@ def run_lineages(lins, const, lineage_info):
 
         # step2: Maximum likelihood estimate
         print('Estimate mean fitness')
-        glob.UPDATE_GLOBAL(current_step, const, lineage_info, lins_RAND, '2d')
+        glob.UPDATE_GLOBAL(current_step, const, lins_RAND, '2d')
 
         # run SModel_S for all lineages
-        print('Compute Bayesian probabilities for lineages')
-        run_dict = {'model_name': MODEL_NAME['SS'], 'lineage_name': lineage_info['lineage_name']}
+        print('Compute Bayesian probabilities for ' + str(len(lins))+ ' lineages')
+        run_dict = {'model_name': MODEL_NAME['SS'], 'lineage_name': mc.case_name}
         run_model_MCMCmultiprocessing(run_dict, lins, glob)
 
     # output result
-    mr.output_global_parameters_BFM(lineage_info, const)
-    mr.output_Selection_Coefficient_Bayes_v5(lineage_info, datafilename, beta=[mc.beta])
+    mr.output_global_parameters_BFM(const)
+    mr.output_Selection_Coefficient_Bayes_v5()
 
 if __name__ == '__main__':
-    
-    # ##################################
-    # Set your filename and case_name
-    # ################################## 
-    
-    #
-    # 1. Input Files
-    # 
-    datafilename = 'Data_BarcodeCount_simuMEE_20220213' + '.txt'  # FileName of Barcode Count data
 
-    #
-    # 2. Name of This Run Case
-    #
-    case_name = 'Simulation_test_initializing_feature'
+    run_BASIL(start_step=1)
 
-    lineage_info = {'lineage_name': case_name + '_v7'}
-    lineage_info.update({'initializing_lineage_filename': mc.initializing_lineage_filename})
-    lineage_info.update({'file_start_time': mc.FILE_START_TIME})
-
-    # ##################################
-    # Run & output results
-    # ##################################
-
-    #
-    # 3. Run program
-    #
-    lins, totalread, t_cycles = mr.my_readfile(datafilename)
-    const = Constant(totalread, t_cycles)
-    run_lineages(lins, const, lineage_info)
-
-    #
-    # 4. (Optional) Play with different beta-threshold for lineage calling (default beta = 3.3)
-    #
-    mr.output_Selection_Coefficient_Bayes_v5(lineage_info, datafilename, beta=[3, 4, 5, 6])
+    # ---- (Optional) Play with different beta-threshold for lineage calling (default beta = [3.3])
+    mr.output_Selection_Coefficient_Bayes_v5(beta=[3, 4, 5, 6])
 
 
